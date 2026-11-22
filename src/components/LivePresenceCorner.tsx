@@ -9,18 +9,30 @@ interface LivePresenceDisplayProps {
   presence: LivePresenceState;
 }
 
+function computeSectionPercentages(snapshot: LivePresenceState['snapshot']) {
+  const { studio, home, other } = snapshot.breakdown;
+  const totalReal = studio + home + other;
+  if (totalReal <= 0) {
+    return { studioPct: 0, homePct: 100, otherPct: 0 };
+  }
+  const studioPct = Math.round((studio / totalReal) * 100);
+  const otherPct = Math.round((other / totalReal) * 100);
+  const homePct = Math.max(0, 100 - studioPct - otherPct);
+  return { studioPct, homePct, otherPct };
+}
+
 /**
- * Front-Page Top Corner / Hero Live Active Users Card:
- * Displays real-time active users starting cleanly at 100 (= 0 genuine users, 101 = 1 user, etc.)
- * with live Studio vs Front Page breakdown.
+ * Front-Page Live Active Users Card:
+ * Shows real-time active users (100+ scale) and live section activity breakdown
+ * without exposing internal baseline offset details.
  */
 export function LiveOnlineBanner({ lang, presence }: LivePresenceDisplayProps) {
   const { snapshot, mode } = presence;
   const totalFormatted = formatPresenceCount(snapshot.displayedOnlineCount, lang);
-  const realFormatted = formatPresenceCount(snapshot.realOnlineCount, lang);
-  const studioFormatted = formatPresenceCount(snapshot.breakdown.studio, lang);
-  const homeFormatted = formatPresenceCount(snapshot.breakdown.home, lang);
-  const otherFormatted = formatPresenceCount(snapshot.breakdown.other, lang);
+  const { studioPct, homePct, otherPct } = computeSectionPercentages(snapshot);
+  const studioPctStr = formatPresenceCount(studioPct, lang);
+  const homePctStr = formatPresenceCount(homePct, lang);
+  const otherPctStr = formatPresenceCount(otherPct, lang);
 
   return (
     <aside
@@ -32,10 +44,7 @@ export function LiveOnlineBanner({ lang, presence }: LivePresenceDisplayProps) {
         <div className="flex items-center gap-3 min-w-0">
           <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-500">
             <Radio className="h-4 w-4" />
-            <span
-              aria-hidden="true"
-              className="absolute -right-1 -top-1 flex h-2.5 w-2.5"
-            >
+            <span aria-hidden="true" className="absolute -right-1 -top-1 flex h-2.5 w-2.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
             </span>
@@ -50,14 +59,14 @@ export function LiveOnlineBanner({ lang, presence }: LivePresenceDisplayProps) {
                 {totalFormatted}
               </span>
               <span className="text-xs font-semibold text-emerald-500">
-                {L(lang, 'Currently Online Now', 'জন এখন অনলাইনে আছেন')}
+                {L(lang, 'Currently Online', 'জন এখন অনলাইনে আছেন')}
               </span>
             </div>
             <p className="mt-1 text-[11px] text-[var(--ck-text-muted)]">
               {L(
                 lang,
-                `Genuine live studio meter (100 = 0, 101 = 1 · ${realFormatted} active now)`,
-                `রিয়েল-টাইম লাইভ মিটার (১০০ = ০ জন, ১০১ = ১ জন · সরাসরি ${realFormatted} জন সক্রিয়)`
+                'Real-time active creators & visitors on Reeldaiii',
+                'এই মুহূর্তে Reeldaiii স্টুডিও ও ওয়েবসাইটে সক্রিয় ইউজার'
               )}
             </p>
           </div>
@@ -68,31 +77,27 @@ export function LiveOnlineBanner({ lang, presence }: LivePresenceDisplayProps) {
             <Clapperboard className="h-3.5 w-3.5 text-[var(--ck-accent)] shrink-0" />
             <span>{L(lang, 'In Studio:', 'স্টুডিওতে:')}</span>
             <span className="font-mono font-semibold tabular-nums text-[var(--ck-text)]">
-              {studioFormatted}
+              {studioPctStr}%
             </span>
           </div>
           <div className="inline-flex items-center gap-1.5 rounded-md border border-[var(--ck-border)] bg-[var(--ck-inset)] px-2.5 py-1.5 text-[var(--ck-text-secondary)]">
             <Home className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
             <span>{L(lang, 'Front Page:', 'ফ্রন্ট পেজে:')}</span>
             <span className="font-mono font-semibold tabular-nums text-[var(--ck-text)]">
-              {homeFormatted}
+              {homePctStr}%
             </span>
           </div>
-          {snapshot.breakdown.other > 0 && (
+          {otherPct > 0 && (
             <div className="inline-flex items-center gap-1.5 rounded-md border border-[var(--ck-border)] bg-[var(--ck-inset)] px-2.5 py-1.5 text-[var(--ck-text-secondary)]">
               <Users className="h-3.5 w-3.5 text-[var(--ck-text-muted)] shrink-0" />
               <span>{L(lang, 'Docs:', 'অন্যান্য:')}</span>
               <span className="font-mono font-semibold tabular-nums text-[var(--ck-text)]">
-                {otherFormatted}
+                {otherPctStr}%
               </span>
             </div>
           )}
-          <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--ck-text-faint)]">
-            {mode === 'websocket'
-              ? 'WS LIVE'
-              : mode === 'http'
-                ? 'HTTP LIVE'
-                : 'TAB LIVE'}
+          <span className="font-mono text-[10px] uppercase tracking-wider text-emerald-500/80">
+            {mode === 'websocket' ? 'LIVE' : mode === 'http' ? 'LIVE' : 'LIVE'}
           </span>
         </div>
       </div>
@@ -103,17 +108,17 @@ export function LiveOnlineBanner({ lang, presence }: LivePresenceDisplayProps) {
 /**
  * Global Bottom-Left Corner Breakdown Widget:
  * Stays cleanly tucked in the bottom-left corner (away from SupportKori on bottom-right)
- * and expands to show real-time online count & Studio breakdown.
+ * and expands to show real-time active users & studio area breakdown.
  */
 export function LivePresenceCornerWidget({ lang, presence }: LivePresenceDisplayProps) {
   const [expanded, setExpanded] = useState(false);
-  const { snapshot, mode } = presence;
+  const { snapshot } = presence;
 
   const totalFormatted = formatPresenceCount(snapshot.displayedOnlineCount, lang);
-  const realFormatted = formatPresenceCount(snapshot.realOnlineCount, lang);
-  const studioFormatted = formatPresenceCount(snapshot.breakdown.studio, lang);
-  const homeFormatted = formatPresenceCount(snapshot.breakdown.home, lang);
-  const otherFormatted = formatPresenceCount(snapshot.breakdown.other, lang);
+  const { studioPct, homePct, otherPct } = computeSectionPercentages(snapshot);
+  const studioPctStr = formatPresenceCount(studioPct, lang);
+  const homePctStr = formatPresenceCount(homePct, lang);
+  const otherPctStr = formatPresenceCount(otherPct, lang);
 
   return (
     <div
@@ -131,12 +136,10 @@ export function LivePresenceCornerWidget({ lang, presence }: LivePresenceDisplay
             <div className="flex items-center gap-2">
               <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
               <span className="text-xs font-semibold text-[var(--ck-text)]">
-                {L(lang, 'Real-Time Online Breakdown', 'রিয়েল-টাইম অনলাইন ব্রেকডাউন')}
+                {L(lang, 'Live Activity Breakdown', 'লাইভ অনলাইন ব্রেকডাউন')}
               </span>
             </div>
-            <span className="font-mono text-[10px] font-semibold text-emerald-500">
-              {mode === 'websocket' ? 'LIVE WS' : mode === 'http' ? 'LIVE' : 'SYNC'}
-            </span>
+            <span className="font-mono text-[10px] font-semibold text-emerald-500">LIVE</span>
           </div>
 
           <div className="mt-2.5 flex items-baseline justify-between gap-2">
@@ -145,15 +148,8 @@ export function LivePresenceCornerWidget({ lang, presence }: LivePresenceDisplay
                 {totalFormatted}
               </div>
               <div className="mt-1 text-[11px] text-[var(--ck-text-muted)]">
-                {L(
-                  lang,
-                  `100 base + ${realFormatted} real active`,
-                  `১০০ বেস + ${realFormatted} জন আসল ইউজার`
-                )}
+                {L(lang, 'Users currently online now', 'জন বর্তমানে অনলাইনে আছেন')}
               </div>
-            </div>
-            <div className="rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 font-mono text-[10px] font-semibold text-emerald-500">
-              100 = 0 · 101 = 1
             </div>
           </div>
 
@@ -164,7 +160,7 @@ export function LivePresenceCornerWidget({ lang, presence }: LivePresenceDisplay
                 {L(lang, 'In Animation Studio', 'অ্যানিমেশন স্টুডিওতে')}
               </span>
               <span className="font-mono font-semibold tabular-nums text-[var(--ck-text)]">
-                {studioFormatted}
+                {studioPctStr}%
               </span>
             </div>
             <div className="flex items-center justify-between rounded-md bg-[var(--ck-inset)] px-2.5 py-1.5">
@@ -173,7 +169,7 @@ export function LivePresenceCornerWidget({ lang, presence }: LivePresenceDisplay
                 {L(lang, 'On Front Page', 'ফ্রন্ট পেজে আছেন')}
               </span>
               <span className="font-mono font-semibold tabular-nums text-[var(--ck-text)]">
-                {homeFormatted}
+                {homePctStr}%
               </span>
             </div>
             <div className="flex items-center justify-between rounded-md bg-[var(--ck-inset)] px-2.5 py-1.5">
@@ -182,7 +178,7 @@ export function LivePresenceCornerWidget({ lang, presence }: LivePresenceDisplay
                 {L(lang, 'Manual & Developer', 'ম্যানুয়াল ও ডেভেলপার')}
               </span>
               <span className="font-mono font-semibold tabular-nums text-[var(--ck-text)]">
-                {otherFormatted}
+                {otherPctStr}%
               </span>
             </div>
           </div>
@@ -205,9 +201,6 @@ export function LivePresenceCornerWidget({ lang, presence }: LivePresenceDisplay
         </span>
         <span className="truncate text-[var(--ck-text-secondary)]">
           {L(lang, 'Online', 'অনলাইন')}
-        </span>
-        <span className="hidden sm:inline font-mono text-[10px] text-[var(--ck-text-muted)]">
-          ({L(lang, `Studio ${studioFormatted}`, `স্টুডিও ${studioFormatted}`)})
         </span>
         {expanded ? (
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--ck-text-muted)]" />
