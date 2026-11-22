@@ -72,9 +72,11 @@ import { RedesignModal } from './components/RedesignModal';
 import { CharacterDesignerModal } from './components/CharacterDesignerModal';
 import { TimelineEditor } from './components/TimelineEditor';
 import { HomePage } from './components/HomePage';
+import { LivePresenceCornerWidget } from './components/LivePresenceCorner';
 import { StudioColumn } from './components/StudioColumn';
 import { DeveloperPage } from './components/DeveloperPage';
 import { UserManualPage } from './components/UserManualPage';
+import { useLivePresence } from './lib/useLivePresence';
 import { HomeShowcaseStory, KEYBOARD_SHORTCUTS } from './lib/manualContent';
 import {
   StoryTemplateId,
@@ -180,6 +182,14 @@ export default function App() {
   const [recentProjects, setRecentProjects] = useState<AnimationProject[]>([]);
   const [aiDirectorAvailable, setAiDirectorAvailable] = useState<boolean>(false);
   const [directorNotice, setDirectorNotice] = useState<string | null>(null);
+
+  const presenceActivity =
+    activePage === 'studio'
+      ? hasLoadedProject && studioSection === 'preview'
+        ? 'previewing'
+        : 'creating'
+      : 'browsing';
+  const livePresence = useLivePresence(activePage, presenceActivity);
 
   const [isLoadingCues, setIsLoadingCues] = useState<boolean>(true);
   const [srtError, setSrtError] = useState<string | null>(null);
@@ -1667,6 +1677,7 @@ export default function App() {
         {activePage === 'home' && (
           <HomePage
             lang={lang}
+            presence={livePresence}
             onEnterStudio={handleEnterStudio}
             onOpenVoiceRecorder={handleOpenVoiceRecorder}
             onLaunchDemo={handleLoadDemo}
@@ -2379,6 +2390,8 @@ export default function App() {
         hasActiveProject={hasLoadedProject}
         onApplyCharacter={handleApplyCustomCharacter}
       />
+
+      <LivePresenceCornerWidget lang={lang} presence={livePresence} />
     </div>
   );
 }

@@ -1,10 +1,13 @@
 import 'dotenv/config';
 import express from 'express';
+import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { WebSocketServer, WebSocket } from 'ws';
 import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 import { sanitizeSvgMarkup } from './src/lib/svgSanitizer';
+import { PresenceRegistry, PresenceSnapshot } from './src/lib/presenceTracker';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -122,10 +125,79 @@ const STYLE_ART_DIRECTIONS: Record<string, string> = {
 
 async function startServer() {
   const app = express();
+  const httpServer = http.createServer(app);
+  const presenceRegistry = new PresenceRegistry(45_000);
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws/presence' });
+  const wsClientSessions = new Map<WebSocket, string>();
+
+  const broadcastPresence = (snapshot: PresenceSnapshot = presenceRegistry.getSnapshot()) => {
+    const payload = JSON.stringify({ type: 'presence:update', snapshot });
+    for (const client of wss.clients) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(payload);
+      }
+    }
+  };
+
+  wss.on('connection', (ws) => {
+    ws.send(JSON.stringify({ type: 'presence:update', snapshot: presenceRegistry.getSnapshot() }));
+
+    ws.on('message', (raw) => {
+      try {
+        const msg = JSON.parse(String(raw)) as {
+          type?: string;
+          sessionId?: unknown;
+          page?: unknown;
+          activity?: unknown;
+        };
+        if (
+          (msg.type === 'presence:hello' || msg.type === 'presence:update') &&
+          typeof msg.sessionId === 'string' &&
+          msg.sessionId.trim()
+        ) {
+          const sid = msg.sessionId.trim().slice(0, 80);
+          wsClientSessions.set(ws, sid);
+          const snap = presenceRegistry.joinOrHeartbeat(sid, msg.page, msg.activity);
+          broadcastPresence(snap);
+        }
+      } catch {
+        // Ignore malformed WebSocket payloads
+      }
+    });
+
+    ws.on('close', () => {
+      const sid = wsClientSessions.get(ws);
+      wsClientSessions.delete(ws);
+      if (sid) {
+        // Ensure no other open socket holds the exact same sessionId before removing
+        const stillOpen = Array.from(wsClientSessions.values()).includes(sid);
+        if (!stillOpen && presenceRegistry.leave(sid)) {
+          broadcastPresence();
+        }
+      }
+    });
+  });
+
+  const pruneTimer = setInterval(() => {
+    const removed = presenceRegistry.pruneExpired();
+    if (removed > 0) {
+      broadcastPresence();
+    }
+  }, 15_000);
+  pruneTimer.unref?.();
+
   app.use(express.json({ limit: '18mb' }));
+  app.use(express.text({ type: 'text/plain', limit: '64kb' }));
 
   app.get('/api/health', (_req, res) => {
-    res.json({ ok: true, directorAvailable: Boolean(getApiKey()), model: DIRECTOR_MODEL });
+    const presence = presenceRegistry.getSnapshot();
+    res.json({
+      ok: true,
+      directorAvailable: Boolean(getApiKey()),
+      model: DIRECTOR_MODEL,
+      presenceOnline: presence.displayedOnlineCount,
+      realOnlineCount: presence.realOnlineCount,
+    });
   });
 
   app.get('/api/director/status', (_req, res) => {
@@ -133,6 +205,50 @@ async function startServer() {
       available: Boolean(getApiKey()),
       model: DIRECTOR_MODEL,
     });
+  });
+
+  app.get('/api/presence', (_req, res) => {
+    presenceRegistry.pruneExpired();
+    res.json(presenceRegistry.getSnapshot());
+  });
+
+  app.post('/api/presence/heartbeat', (req, res) => {
+    let body: Record<string, unknown> = {};
+    if (typeof req.body === 'string') {
+      try {
+        body = JSON.parse(req.body) as Record<string, unknown>;
+      } catch {
+        body = {};
+      }
+    } else if (req.body && typeof req.body === 'object') {
+      body = req.body as Record<string, unknown>;
+    }
+    const sid = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
+    if (!sid) {
+      res.status(400).json({ error: 'Missing sessionId' });
+      return;
+    }
+    const snap = presenceRegistry.joinOrHeartbeat(sid, body.page, body.activity);
+    broadcastPresence(snap);
+    res.json(snap);
+  });
+
+  app.post('/api/presence/leave', (req, res) => {
+    let body: Record<string, unknown> = {};
+    if (typeof req.body === 'string') {
+      try {
+        body = JSON.parse(req.body) as Record<string, unknown>;
+      } catch {
+        body = {};
+      }
+    } else if (req.body && typeof req.body === 'object') {
+      body = req.body as Record<string, unknown>;
+    }
+    const sid = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
+    if (sid && presenceRegistry.leave(sid)) {
+      broadcastPresence();
+    }
+    res.json(presenceRegistry.getSnapshot());
   });
 
   /**
@@ -660,8 +776,8 @@ Return updated JSON with titleBn, titleEn, summary, visualMatchReason, visualSto
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Reeldaiii Studio server running on http://0.0.0.0:${PORT}`);
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`Reeldaiii Studio server + WebSocket running on http://0.0.0.0:${PORT}`);
   });
 }
 

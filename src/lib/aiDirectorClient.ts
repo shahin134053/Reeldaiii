@@ -75,6 +75,9 @@ export interface AiDirectorPlanResponse {
 }
 
 export async function fetchAiDirectorStatus(): Promise<AiDirectorStatus> {
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('.github.io')) {
+    return { available: false, model: 'offline' };
+  }
   try {
     const res = await fetch('/api/director/status');
     if (!res.ok) return { available: false, model: 'offline' };

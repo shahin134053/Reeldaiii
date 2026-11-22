@@ -19,9 +19,12 @@ import { AppLang, L } from '../lib/i18n';
 import { REELDAIII_BRAND } from '../lib/brandAssets';
 import { DEVELOPER_PROFILE } from '../lib/developerProfile';
 import { ensureSupportKoriWidgetMounted, openSupportKoriPopup } from '../lib/supportKoriWidget';
+import { LivePresenceState } from '../lib/useLivePresence';
+import { LiveOnlineBanner } from './LivePresenceCorner';
 
 interface HomePageProps {
   lang: AppLang;
+  presence: LivePresenceState;
   onEnterStudio: () => void;
   onOpenVoiceRecorder?: () => void;
   onLaunchDemo: () => void;
@@ -33,6 +36,7 @@ interface HomePageProps {
 
 export function HomePage({
   lang,
+  presence,
   onEnterStudio,
   onOpenVoiceRecorder,
   onLaunchDemo,
@@ -301,6 +305,9 @@ export function HomePage({
             </div>
           </div>
         </div>
+
+        {/* Genuine Live Online User Counter (100 = 0 baseline, 101 = 1 user, unlimited scaling) */}
+        <LiveOnlineBanner lang={lang} presence={presence} />
 
         {/* Clean 4-Metric Proof Strip */}
         <div className="grid grid-cols-2 gap-y-6 border-y border-[var(--ck-border-subtle)] py-6 sm:grid-cols-4 sm:divide-x sm:divide-[var(--ck-border-subtle)]">
