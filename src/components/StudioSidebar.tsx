@@ -1538,7 +1538,9 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
                 onChange={(e) =>
                   onUpdateScene(activeScene.id, {
                     primaryCharacter: e.target.value as CharacterRole,
+                    primaryCharacterAssetId: undefined,
                     presetSceneId: undefined,
+                    customSvg: undefined,
                   })
                 }
                 className="mt-1 h-9 w-full rounded-lg border border-[var(--ck-border)] bg-[var(--ck-inset)] px-2.5 text-xs text-[var(--ck-text)] focus:border-[var(--ck-accent)] focus:outline-none"

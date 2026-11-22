@@ -82,6 +82,8 @@ import {
   applyAutoIllustratedEnvironmentsToProject,
   applyCharacterAssetToProject,
   applyEnvironmentAssetToProject,
+  buildCharacterProfileFromAsset,
+  draftFromCharacterAsset,
   getCharacterAssetById,
   getEnvironmentAssetById,
 } from './lib/studioAssetLibrary';
@@ -275,8 +277,53 @@ export default function App() {
         setProject((prev) => {
           if (!prev.isDemo) return prev;
           const base = createDemoProject(parsed);
+          const hasUserOverrides = Boolean(
+            prev.characterProfiles?.some((p) => p.isCustom) ||
+              prev.defaultEnvironmentAssetId ||
+              prev.autoUseIllustratedWorlds ||
+              prev.scenes.some(
+                (s) =>
+                  s.primaryCharacterAssetId ||
+                  s.secondaryCharacterAssetId ||
+                  s.customBackgroundAssetId ||
+                  !s.presetSceneId
+              )
+          );
+          const mergedScenes = hasUserOverrides
+            ? base.scenes.map((bScene, idx) => {
+                const pScene = prev.scenes.find((s) => s.id === bScene.id) ?? prev.scenes[idx];
+                if (!pScene) return bScene;
+                return {
+                  ...bScene,
+                  primaryCharacter: pScene.primaryCharacter,
+                  secondaryCharacter: pScene.secondaryCharacter,
+                  primaryCharacterAssetId: pScene.primaryCharacterAssetId,
+                  secondaryCharacterAssetId: pScene.secondaryCharacterAssetId,
+                  characterRenderMode: pScene.characterRenderMode,
+                  characterIds: pScene.characterIds,
+                  customBackgroundAssetId: pScene.customBackgroundAssetId,
+                  customBackgroundUrl: pScene.customBackgroundUrl,
+                  setting: pScene.setting,
+                  timeOfDay: pScene.timeOfDay,
+                  accentColor: pScene.accentColor,
+                  environmentDetails: pScene.environmentDetails,
+                  presetSceneId: pScene.presetSceneId,
+                  customSvg: pScene.customSvg,
+                };
+              })
+            : base.scenes;
           return {
             ...base,
+            characterProfiles: hasUserOverrides
+              ? (prev.characterProfiles ?? base.characterProfiles)
+              : base.characterProfiles,
+            characterBible: hasUserOverrides
+              ? (prev.characterBible ?? base.characterBible)
+              : base.characterBible,
+            defaultEnvironmentAssetId: prev.defaultEnvironmentAssetId ?? base.defaultEnvironmentAssetId,
+            autoUseIllustratedWorlds: prev.autoUseIllustratedWorlds ?? base.autoUseIllustratedWorlds,
+            referenceMedia: prev.referenceMedia ?? base.referenceMedia,
+            scenes: mergedScenes,
             brandingConfig: prev.brandingConfig ?? base.brandingConfig,
             subtitleConfig: prev.subtitleConfig ?? base.subtitleConfig,
             designConfig: prev.designConfig ?? base.designConfig,
@@ -736,8 +783,18 @@ export default function App() {
 
         const paintedScenes = [...finalProject.scenes];
         let builtCount = 0;
+        const hasExplicitCharacterSelection = Boolean(
+          payload.customCharacter ??
+            customCharacterProfile ??
+            payload.selectedCharacterAssetId ??
+            createCharacterAssetId
+        );
 
-        if (finalProject.directorEngine === 'gemini-ai' && aiDirectorAvailable) {
+        if (
+          finalProject.directorEngine === 'gemini-ai' &&
+          aiDirectorAvailable &&
+          !hasExplicitCharacterSelection
+        ) {
           for (let i = 0; i < paintedScenes.length; i += 2) {
             if (!isCurrent()) return;
             const batchIndices = [i, i + 1].filter((idx) => idx < paintedScenes.length);
@@ -827,21 +884,26 @@ export default function App() {
           auditedProject = applyStoryTemplateToProject(auditedProject, payload.templateId);
         }
         const effectiveCustomChar = payload.customCharacter ?? customCharacterProfile;
+        const pickedCharAssetId = payload.selectedCharacterAssetId ?? createCharacterAssetId;
+        const pickedCharMode = payload.selectedCharacterMode ?? createCharacterMode;
         if (effectiveCustomChar) {
+          const syncedCustom: CharacterProfile =
+            pickedCharAssetId && effectiveCustomChar.sourceAssetId === pickedCharAssetId
+              ? { ...effectiveCustomChar, renderMode: pickedCharMode }
+              : effectiveCustomChar;
           auditedProject = applyCustomCharacterToProject(
             auditedProject,
-            effectiveCustomChar,
+            syncedCustom,
             payload.lockCustomCharacter ?? customCharacterDraft?.lockAcrossAllScenes ?? true
           );
         }
-        const pickedCharAssetId = payload.selectedCharacterAssetId ?? createCharacterAssetId;
         if (pickedCharAssetId && effectiveCustomChar?.sourceAssetId !== pickedCharAssetId) {
           const pickedCharAsset = getCharacterAssetById(pickedCharAssetId);
           if (pickedCharAsset) {
             auditedProject = applyCharacterAssetToProject(auditedProject, pickedCharAsset, {
               scope: 'all',
               slot: 'primary',
-              renderMode: payload.selectedCharacterMode ?? createCharacterMode,
+              renderMode: pickedCharMode,
             });
           }
         }
@@ -1024,7 +1086,23 @@ export default function App() {
 
   const handleUpdateScene = useCallback((sceneId: string, patch: Partial<SceneSpec>) => {
     setProject((prev) => {
-      const nextScenes = prev.scenes.map((s) => (s.id === sceneId ? { ...s, ...patch } : s));
+      const clearBakedOverrides =
+        patch.primaryCharacter !== undefined ||
+        patch.secondaryCharacter !== undefined ||
+        patch.setting !== undefined;
+      const nextScenes = prev.scenes.map((s) => {
+        if (s.id !== sceneId) return s;
+        return {
+          ...s,
+          ...patch,
+          ...(clearBakedOverrides
+            ? {
+                presetSceneId: 'presetSceneId' in patch ? patch.presetSceneId : undefined,
+                customSvg: 'customSvg' in patch ? patch.customSvg : undefined,
+              }
+            : {}),
+        };
+      });
       const next: AnimationProject = { ...prev, scenes: nextScenes };
       next.qualityAudit = auditProjectQuality(next);
       return next;
@@ -1087,23 +1165,39 @@ export default function App() {
       setCustomCharacterDraft(draft);
       setCreateCharacterAssetId(draft.sourceAssetId ?? null);
       setCreateCharacterMode(draft.renderMode ?? 'rig-sync');
-      if (draft.referenceSheetUrl) {
+      if (draft.referenceSheetUrl || draft.sourceAssetId) {
         void preloadStudioAssetsForScenes([], [profile]);
       }
-      if (hasLoadedProject) {
+      if (hasLoadedProject && studioSection !== 'create') {
+        const targetId = activeScene.id;
         setProject((prev) => {
           const updated = applyCustomCharacterToProject(
             prev,
             profile,
-            draft.lockAcrossAllScenes
+            draft.lockAcrossAllScenes,
+            targetId
           );
           updated.qualityAudit = auditProjectQuality(updated);
+          void preloadStudioAssetsForScenes(updated.scenes, updated.characterProfiles);
           return updated;
         });
+        if (studioSection === 'script' || studioSection === 'quality') {
+          setStudioSection('preview');
+        }
       }
     },
-    [hasLoadedProject]
+    [activeScene.id, hasLoadedProject, studioSection]
   );
+
+  const handleChangeCreateCharacterMode = useCallback((mode: CharacterRenderMode) => {
+    setCreateCharacterMode(mode);
+    setCustomCharacterDraft((prev) =>
+      prev && prev.sourceAssetId ? { ...prev, renderMode: mode } : prev
+    );
+    setCustomCharacterProfile((prev) =>
+      prev && prev.sourceAssetId ? { ...prev, renderMode: mode } : prev
+    );
+  }, []);
 
   const handleOpenAssetPicker = useCallback(
     (tab: AssetPickerTab, contextMode: 'create' | 'studio') => {
@@ -1124,6 +1218,21 @@ export default function App() {
       if (assetPickerState.contextMode === 'create') {
         setCreateCharacterAssetId(asset?.id ?? null);
         setCreateCharacterMode(options.renderMode);
+        if (!asset) {
+          setCustomCharacterProfile((prev) => (prev?.sourceAssetId ? null : prev));
+          setCustomCharacterDraft((prev) => (prev?.sourceAssetId ? null : prev));
+        } else {
+          const profile = buildCharacterProfileFromAsset(asset, options.renderMode);
+          setCustomCharacterProfile(profile);
+          setCustomCharacterDraft((prev) =>
+            draftFromCharacterAsset(
+              asset,
+              options.renderMode,
+              prev?.lockAcrossAllScenes ?? true
+            )
+          );
+          void preloadStudioAssetsForScenes([], [profile]);
+        }
         return;
       }
 
@@ -1984,18 +2093,21 @@ export default function App() {
                   onClearCustomCharacter={() => {
                     setCustomCharacterProfile(null);
                     setCustomCharacterDraft(null);
+                    setCreateCharacterAssetId(null);
                   }}
                   selectedCharacterAssetId={createCharacterAssetId}
                   selectedCharacterMode={createCharacterMode}
                   selectedEnvironmentAssetId={createEnvironmentAssetId}
                   autoUseIllustratedWorlds={createAutoIllustrated}
                   onOpenAssetPicker={(tab) => handleOpenAssetPicker(tab, 'create')}
-                  onChangeCharacterMode={setCreateCharacterMode}
+                  onChangeCharacterMode={handleChangeCreateCharacterMode}
                   onChangeAutoIllustrated={setCreateAutoIllustrated}
                   onClearAssetSelections={() => {
                     setCreateCharacterAssetId(null);
                     setCreateEnvironmentAssetId(null);
                     setCreateAutoIllustrated(false);
+                    setCustomCharacterProfile((prev) => (prev?.sourceAssetId ? null : prev));
+                    setCustomCharacterDraft((prev) => (prev?.sourceAssetId ? null : prev));
                   }}
                   initialInputMode={studioInitialInputMode}
                 />
@@ -2608,7 +2720,7 @@ export default function App() {
         isOpen={isCharacterDesignerOpen}
         onClose={() => setIsCharacterDesignerOpen(false)}
         initialDraft={customCharacterDraft}
-        hasActiveProject={hasLoadedProject}
+        hasActiveProject={hasLoadedProject && studioSection !== 'create'}
         onApplyCharacter={handleApplyCustomCharacter}
       />
 
@@ -2641,7 +2753,7 @@ export default function App() {
         }
         onChangeRenderMode={(mode) => {
           if (assetPickerState.contextMode === 'create') {
-            setCreateCharacterMode(mode);
+            handleChangeCreateCharacterMode(mode);
           } else {
             handleToggleSceneCharacterMode(mode);
           }

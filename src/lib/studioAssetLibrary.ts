@@ -1204,6 +1204,7 @@ export function applyCharacterAssetToProject(
         characterRenderMode: renderMode,
         characterIds: Array.from(new Set([...prevIds, profile.characterId])),
         presetSceneId: undefined,
+        customSvg: undefined,
       };
     }
 
@@ -1214,6 +1215,7 @@ export function applyCharacterAssetToProject(
       characterRenderMode: renderMode,
       characterIds: [profile.characterId, ...prevIds],
       presetSceneId: undefined,
+      customSvg: undefined,
     };
   });
 

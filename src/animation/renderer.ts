@@ -272,26 +272,42 @@ export function renderProjectFrame(
     targetSceneTime: number,
     targetSceneDuration: number
   ) => {
+    const hasExplicitCharacterAsset = Boolean(
+      targetScene.primaryCharacterAssetId || targetScene.secondaryCharacterAssetId
+    );
+    const hasCustomLockedActor = Boolean(
+      project.characterProfiles?.some(
+        (p) => p.isCustom && (targetScene.characterIds ?? []).includes(p.characterId)
+      )
+    );
+    const hasSceneMediaOverride = Boolean(
+      hasExplicitCharacterAsset ||
+        targetScene.customBackgroundAssetId ||
+        targetScene.customBackgroundUrl ||
+        hasCustomLockedActor
+    );
+
     // Priority 1: Bespoke Gemini AI Director 2.5D Multi-Layer Animated Vector Cinema Scene
-    const renderedBespokeSvg = targetScene.customSvg
-      ? renderBespokeSvgScene(
-          targetCtx,
-          targetScene,
-          targetSceneTime,
-          time,
-          width,
-          height,
-          speechEnergy,
-          project.visualStyle,
-          portraitZoom
-        )
-      : false;
+    const renderedBespokeSvg =
+      targetScene.customSvg && !hasSceneMediaOverride
+        ? renderBespokeSvgScene(
+            targetCtx,
+            targetScene,
+            targetSceneTime,
+            time,
+            width,
+            height,
+            speechEnergy,
+            project.visualStyle,
+            portraitZoom
+          )
+        : false;
 
     const designCfg = project.designConfig ?? DEFAULT_DESIGN_CONFIG;
     const activePaletteId = designCfg.colorPalette;
     const parallaxDepth = designCfg.parallaxDepth ?? 1.0;
 
-    if (!renderedBespokeSvg && targetScene.presetSceneId) {
+    if (!renderedBespokeSvg && targetScene.presetSceneId && !hasSceneMediaOverride) {
       // Priority 2: Built-in Hand-Directed Showcase Film
       if (!isVertical) {
         renderPresetScene(targetCtx, targetScene.presetSceneId, targetSceneTime, time);

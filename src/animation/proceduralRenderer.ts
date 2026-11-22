@@ -105,7 +105,10 @@ function drawRiverBoat(
   role: CharacterRole,
   emotion: EmotionTone,
   speechEnergy: number,
-  viseme?: VisemePose
+  viseme?: VisemePose,
+  primaryProfile?: Partial<CharacterProfile>,
+  secondaryProfile?: Partial<CharacterProfile>,
+  secondaryRole: CharacterRole = 'father'
 ): void {
   const bob = Math.sin(time * 2.3) * 3.5 * scale;
   ctx.save();
@@ -124,13 +127,14 @@ function drawRiverBoat(
     y: 4,
     scale: 0.72,
     facing: 1,
-    role,
+    role: primaryProfile?.role ?? role,
     emotion,
     pose: 'sitting-floor',
     time,
     speechEnergy,
     isSpeaking: speechEnergy > 0.14,
     viseme: speechEnergy > 0.14 ? viseme : undefined,
+    profile: primaryProfile,
   });
 
   // Curved wooden hull
@@ -160,12 +164,13 @@ function drawRiverBoat(
     y: 6,
     scale: 0.68,
     facing: -1,
-    role: 'father',
+    role: secondaryProfile?.role ?? secondaryRole,
     emotion: 'calm',
     pose: 'sitting-floor',
     time,
     speechEnergy: 0,
     isSpeaking: false,
+    profile: secondaryProfile,
   });
 
   const oarAngle = Math.sin(time * 2.1) * 0.28;
@@ -421,7 +426,24 @@ export function renderProceduralScene(
 
     if (scene.action === 'boat-glide') {
       const boatX = safe.clampX(lerp(safe.safeLeft + 74, safe.safeRight - 74, progress), 78);
-      drawRiverBoat(ctx, boatX, subjectY - 56, unitScale * 0.92, globalTime, primaryRole, emotion, speechEnergy, viseme);
+      const boatPrimary = resolveSceneActorProfile(characterProfiles, primaryRole, scene, 'primary');
+      const boatSecondary = (secondaryRole || scene.secondaryCharacterAssetId)
+        ? resolveSceneActorProfile(characterProfiles, secondaryRole ?? 'father', scene, 'secondary')
+        : undefined;
+      drawRiverBoat(
+        ctx,
+        boatX,
+        subjectY - 56,
+        unitScale * 0.92,
+        globalTime,
+        primaryRole,
+        emotion,
+        speechEnergy,
+        viseme,
+        boatPrimary,
+        boatSecondary,
+        secondaryRole ?? 'father'
+      );
     } else {
       // Mud riverbank foreground with expressive standing/walking human
       ctx.fillStyle = '#3B4D36';
@@ -550,15 +572,25 @@ export function renderProceduralScene(
     const isWet = scene.weather === 'rain' || scene.weather === 'heavy-storm';
 
     if (scene.action === 'rickshaw-ride') {
+      const hasCustomCastOverride = Boolean(
+        scene.primaryCharacterAssetId ||
+          scene.secondaryCharacterAssetId ||
+          characterProfiles?.some((p) => p.isCustom) ||
+          primaryRole !== 'father'
+      );
       const rickshawScale = unitScale * 0.86;
       const halfRickshawW = Math.round(148 * rickshawScale);
       const minRx = safe.safeLeft + halfRickshawW + (isVertical ? 6 : 28);
       const maxRx = safe.safeRight - halfRickshawW - (isVertical ? 6 : 28);
-      const rx = minRx >= maxRx ? safe.centerX : safe.clampX(lerp(minRx, maxRx, progress), halfRickshawW);
+      const rx = hasCustomCastOverride
+        ? safe.clampX(width * 0.28, halfRickshawW)
+        : minRx >= maxRx
+          ? safe.centerX
+          : safe.clampX(lerp(minRx, maxRx, progress), halfRickshawW);
       drawRickshaw(ctx, {
         x: rx,
-        y: subjectY,
-        scale: rickshawScale,
+        y: hasCustomCastOverride ? subjectY - 14 : subjectY,
+        scale: hasCustomCastOverride ? rickshawScale * 0.84 : rickshawScale,
         facing: 1,
         wheelAngle: sceneTime * 4.2,
         pedalPhase: sceneTime * 4.2,
@@ -566,10 +598,13 @@ export function renderProceduralScene(
         hasGamchhaOnSeat: true,
         hasPolytheneOnSeat: true,
         isWet,
-        showFather: true,
+        showFather: !hasCustomCastOverride,
         fatherState: isWet ? 'drenched' : 'pedaling',
-        showRafiSeated: true,
+        showRafiSeated: !hasCustomCastOverride,
       });
+      if (hasCustomCastOverride) {
+        drawSceneHumans(ctx, scene, sceneTime, globalTime, width, height, subjectY, unitScale, progress, primaryRole, secondaryRole, emotion, speechEnergy, isSpeaking, rimLight, isVertical, safe, characterProfiles, viseme);
+      }
     } else {
       drawSceneHumans(ctx, scene, sceneTime, globalTime, width, height, subjectY, unitScale, progress, primaryRole, secondaryRole, emotion, speechEnergy, isSpeaking, rimLight, isVertical, safe, characterProfiles, viseme);
     }

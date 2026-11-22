@@ -14,8 +14,12 @@ import {
   matchCharacterAssetForText,
   matchEnvironmentAssetForText,
 } from './studioAssetLibrary';
-import { compileStoryProject } from './storyCompiler';
-import { stripDetachedSmallIslands } from '../animation/assetCanvasRenderer';
+import { compileStoryProject, createDemoProject } from './storyCompiler';
+import {
+  resolveSceneActorProfile,
+  stripDetachedSmallIslands,
+} from '../animation/assetCanvasRenderer';
+import { applyCustomCharacterToProject } from './characterDesigner';
 
 test('contains all 27 environments and 27 characters with unique IDs and resolved URLs', () => {
   assert.equal(STUDIO_ENVIRONMENT_ASSETS.length, 27);
@@ -150,4 +154,59 @@ test('stripDetachedSmallIslands removes floating label/dot fragments while keepi
   // Floating text & dot cleared
   assert.equal(rgba[(2 * width + 15) * 4 + 3], 0);
   assert.equal(rgba[(36 * width + 25) * 4 + 3], 0);
+});
+
+test('applyCustomCharacterToProject clears Demo presetSceneId and customSvg and binds cutout profile', () => {
+  const demo = createDemoProject([]);
+  // Simulate AI-generated customSvg on one scene as well
+  demo.scenes[0] = { ...demo.scenes[0], customSvg: '<svg></svg>' };
+  assert.ok(demo.scenes.every((s) => Boolean(s.presetSceneId)));
+
+  const teacher = getCharacterAssetById('char-school-teacher');
+  assert.ok(teacher);
+  const teacherProfile = buildCharacterProfileFromAsset(teacher, 'illustrated-cutout');
+
+  const applied = applyCustomCharacterToProject(demo, teacherProfile, true);
+  assert.ok(applied.scenes.every((s) => s.presetSceneId === undefined));
+  assert.ok(applied.scenes.every((s) => s.customSvg === undefined));
+  assert.ok(applied.scenes.every((s) => s.primaryCharacterAssetId === 'char-school-teacher'));
+  assert.ok(applied.scenes.every((s) => s.characterRenderMode === 'illustrated-cutout'));
+
+  const resolved = resolveSceneActorProfile(
+    applied.characterProfiles,
+    applied.scenes[0].primaryCharacter ?? 'teacher',
+    applied.scenes[0],
+    'primary'
+  );
+  assert.equal(resolved?.sourceAssetId, 'char-school-teacher');
+  assert.equal(resolved?.renderMode, 'illustrated-cutout');
+});
+
+test('applyCustomCharacterToProject unlocked updates targetSceneId when role does not match existing scenes', () => {
+  const demo = createDemoProject([]);
+  const owl = getCharacterAssetById('char-wise-owl');
+  assert.ok(owl);
+  const owlProfile = buildCharacterProfileFromAsset(owl, 'illustrated-cutout');
+
+  const targetId = demo.scenes[2].id;
+  const updated = applyCustomCharacterToProject(demo, owlProfile, false, targetId);
+  assert.equal(updated.scenes[2].primaryCharacterAssetId, 'char-wise-owl');
+  assert.equal(updated.scenes[2].presetSceneId, undefined);
+  assert.notEqual(updated.scenes[0].primaryCharacterAssetId, 'char-wise-owl');
+});
+
+test('applyCharacterAssetToProject clears both presetSceneId and customSvg', () => {
+  const demo = createDemoProject([]);
+  demo.scenes[0] = { ...demo.scenes[0], customSvg: '<svg></svg>' };
+  const hero = getCharacterAssetById('char-superhero-kid');
+  assert.ok(hero);
+
+  const updated = applyCharacterAssetToProject(demo, hero, {
+    scope: 'all',
+    slot: 'primary',
+    renderMode: 'illustrated-cutout',
+  });
+  assert.ok(updated.scenes.every((s) => s.presetSceneId === undefined));
+  assert.ok(updated.scenes.every((s) => s.customSvg === undefined));
+  assert.ok(updated.scenes.every((s) => s.primaryCharacterAssetId === 'char-superhero-kid'));
 });

@@ -972,21 +972,37 @@ export const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({
               className="flex flex-col gap-3 rounded-xl border border-[var(--ck-border)] bg-[var(--ck-surface-alt)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black/15 dark:border-white/10"
-                  style={{
-                    backgroundColor: customCharacter ? customCharacter.outfitColor : 'var(--ck-accent-soft)',
-                  }}
-                >
-                  {customCharacter ? (
-                    <span
-                      className="h-3.5 w-3.5 rounded-full border border-black/25"
-                      style={{ backgroundColor: customCharacter.skinTone }}
-                    />
-                  ) : (
-                    <UserCog className="h-4 w-4 text-[var(--ck-accent)]" />
-                  )}
-                </div>
+                {(() => {
+                  const customAsset = customCharacter?.sourceAssetId
+                    ? getCharacterAssetById(customCharacter.sourceAssetId)
+                    : null;
+                  if (customAsset) {
+                    return (
+                      <img
+                        src={customAsset.url}
+                        alt={customCharacter?.name ?? (lang === 'bn' ? customAsset.nameBn : customAsset.nameEn)}
+                        className="h-10 w-12 shrink-0 rounded-lg border border-[var(--ck-border)] object-cover object-left-top bg-[var(--ck-inset)]"
+                      />
+                    );
+                  }
+                  return (
+                    <div
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black/15 dark:border-white/10"
+                      style={{
+                        backgroundColor: customCharacter ? customCharacter.outfitColor : 'var(--ck-accent-soft)',
+                      }}
+                    >
+                      {customCharacter ? (
+                        <span
+                          className="h-3.5 w-3.5 rounded-full border border-black/25"
+                          style={{ backgroundColor: customCharacter.skinTone }}
+                        />
+                      ) : (
+                        <UserCog className="h-4 w-4 text-[var(--ck-accent)]" />
+                      )}
+                    </div>
+                  );
+                })()}
                 <div className="min-w-0">
                   <div className="truncate text-xs font-semibold text-[var(--ck-text)]">
                     {customCharacter
@@ -999,7 +1015,17 @@ export const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({
                   </div>
                   <p className="truncate text-[11px] text-[var(--ck-text-muted)]">
                     {customCharacter
-                      ? `${customCharacter.clothing}${lockCustomCharacter ? (lang === 'bn' ? ' · সব দৃশ্যে লকড' : ' · Locked across all scenes') : ''}`
+                      ? `${customCharacter.clothing}${
+                          customCharacter.sourceAssetId
+                            ? customCharacter.renderMode === 'illustrated-cutout'
+                              ? lang === 'bn'
+                                ? ' · ২ডি কাটআউট'
+                                : ' · 2D Cutout'
+                              : lang === 'bn'
+                                ? ' · লিপ-সিঙ্ক রিগ'
+                                : ' · Lip-Sync Rig'
+                            : ''
+                        }${lockCustomCharacter ? (lang === 'bn' ? ' · সব দৃশ্যে লকড' : ' · Locked across all scenes') : ''}`
                       : L(
                           lang,
                           'Customize outfit color, hairstyle, glasses, hat/tupi & name to keep one consistent character across the story.',

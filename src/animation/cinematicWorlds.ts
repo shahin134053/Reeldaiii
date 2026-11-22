@@ -380,12 +380,15 @@ export function renderStoryMotifOverlay(
  */
 export function renderWorldSpaceCosmos(
   ctx: CanvasRenderingContext2D,
+  scene: SceneSpec,
   sceneTime: number,
   globalTime: number,
   width: number,
   height: number,
   speechEnergy: number,
-  portraitZoom = 1.38
+  portraitZoom = 1.38,
+  characterProfiles?: CharacterProfile[],
+  viseme?: VisemePose
 ): void {
   const safe = getPortraitSafeLayout(width, height, portraitZoom);
   const isVertical = safe.isVertical;
@@ -581,6 +584,60 @@ export function renderWorldSpaceCosmos(
   ctx.fill();
 
   ctx.restore();
+
+  if (
+    scene.primaryCharacterAssetId ||
+    scene.secondaryCharacterAssetId ||
+    characterProfiles?.some((p) => p.isCustom)
+  ) {
+    const actorRole = scene.primaryCharacter ?? 'narrator';
+    const actorProfile = resolveSceneActorProfile(characterProfiles, actorRole, scene, 'primary');
+    const secProfile =
+      scene.secondaryCharacter || scene.secondaryCharacterAssetId
+        ? resolveSceneActorProfile(
+            characterProfiles,
+            scene.secondaryCharacter ?? 'friend',
+            scene,
+            'secondary'
+          )
+        : undefined;
+    const actorY = isVertical ? safe.safeBottom + 44 : height * 0.91;
+    const actorScale = isVertical ? Math.min(1.52, 1.24 * safe.subjectScale) : 1.4;
+    const actorX = safe.clampX(isVertical ? width * 0.5 : width * 0.24, 58);
+
+    drawLifelikeHuman(ctx, {
+      x: actorX,
+      y: actorY,
+      scale: actorScale,
+      facing: 1,
+      role: actorProfile?.role ?? actorRole,
+      emotion: scene.emotion ?? 'inspiring',
+      pose: 'standing-speak',
+      time: globalTime,
+      speechEnergy,
+      isSpeaking: speechEnergy > 0.1,
+      viseme: speechEnergy > 0.1 ? viseme : undefined,
+      rimLightColor: 'rgba(138, 216, 255, 0.55)',
+      profile: actorProfile,
+    });
+
+    if (secProfile) {
+      drawLifelikeHuman(ctx, {
+        x: safe.clampX(isVertical ? width * 0.72 : width * 0.78, 52),
+        y: actorY + 4,
+        scale: actorScale * 0.92,
+        facing: -1,
+        role: secProfile.role ?? scene.secondaryCharacter ?? 'friend',
+        emotion: 'calm',
+        pose: 'listening',
+        time: globalTime + 0.4,
+        speechEnergy: 0,
+        isSpeaking: false,
+        rimLightColor: 'rgba(138, 216, 255, 0.42)',
+        profile: secProfile,
+      });
+    }
+  }
 }
 
 /**
@@ -593,7 +650,10 @@ export function renderWorldOceanVoyage(
   globalTime: number,
   width: number,
   height: number,
-  portraitZoom = 1.38
+  speechEnergy = 0,
+  portraitZoom = 1.38,
+  characterProfiles?: CharacterProfile[],
+  viseme?: VisemePose
 ): void {
   const safe = getPortraitSafeLayout(width, height, portraitZoom);
   const isVertical = safe.isVertical;
@@ -775,6 +835,59 @@ export function renderWorldOceanVoyage(
   // Foreground Waves
   drawWaveBand(horizonY + (height - horizonY) * 0.44, 13, 2.2, isStorm ? '#0E1F2E' : '#123756', 0.24);
   drawWaveBand(horizonY + (height - horizonY) * 0.68, 16, 2.9, '#081726', 0.18);
+
+  if (
+    scene.primaryCharacterAssetId ||
+    scene.secondaryCharacterAssetId ||
+    characterProfiles?.some((p) => p.isCustom)
+  ) {
+    const actorRole = scene.primaryCharacter ?? 'narrator';
+    const actorProfile = resolveSceneActorProfile(characterProfiles, actorRole, scene, 'primary');
+    const secProfile =
+      scene.secondaryCharacter || scene.secondaryCharacterAssetId
+        ? resolveSceneActorProfile(
+            characterProfiles,
+            scene.secondaryCharacter ?? 'friend',
+            scene,
+            'secondary'
+          )
+        : undefined;
+    const actorY = isVertical ? safe.safeBottom + 44 : height * 0.91;
+    const actorScale = isVertical ? Math.min(1.52, 1.24 * safe.subjectScale) : 1.4;
+
+    drawLifelikeHuman(ctx, {
+      x: safe.clampX(isVertical ? width * 0.48 : width * 0.24, 58),
+      y: actorY,
+      scale: actorScale,
+      facing: 1,
+      role: actorProfile?.role ?? actorRole,
+      emotion: scene.emotion ?? 'calm',
+      pose: 'standing-speak',
+      time: globalTime,
+      speechEnergy,
+      isSpeaking: speechEnergy > 0.1,
+      viseme: speechEnergy > 0.1 ? viseme : undefined,
+      rimLightColor: 'rgba(246, 196, 120, 0.5)',
+      profile: actorProfile,
+    });
+
+    if (secProfile) {
+      drawLifelikeHuman(ctx, {
+        x: safe.clampX(isVertical ? width * 0.72 : width * 0.76, 52),
+        y: actorY + 4,
+        scale: actorScale * 0.92,
+        facing: -1,
+        role: secProfile.role ?? scene.secondaryCharacter ?? 'friend',
+        emotion: 'calm',
+        pose: 'listening',
+        time: globalTime + 0.4,
+        speechEnergy: 0,
+        isSpeaking: false,
+        rimLightColor: 'rgba(246, 196, 120, 0.36)',
+        profile: secProfile,
+      });
+    }
+  }
 }
 
 /**
@@ -925,11 +1038,17 @@ export function renderWorldMountainSummit(
  */
 export function renderWorldTrainJourney(
   ctx: CanvasRenderingContext2D,
+  scene: SceneSpec,
   sceneTime: number,
   globalTime: number,
   width: number,
-  height: number
+  height: number,
+  speechEnergy = 0,
+  portraitZoom = 1.38,
+  characterProfiles?: CharacterProfile[],
+  viseme?: VisemePose
 ): void {
+  const safe = getPortraitSafeLayout(width, height, portraitZoom);
   const horizonY = Math.round(height * 0.58);
   drawSky(
     ctx,
@@ -1026,6 +1145,59 @@ export function renderWorldTrainJourney(
     ctx.fill();
   }
   ctx.restore();
+
+  if (
+    scene.primaryCharacterAssetId ||
+    scene.secondaryCharacterAssetId ||
+    characterProfiles?.some((p) => p.isCustom)
+  ) {
+    const actorRole = scene.primaryCharacter ?? 'narrator';
+    const actorProfile = resolveSceneActorProfile(characterProfiles, actorRole, scene, 'primary');
+    const secProfile =
+      scene.secondaryCharacter || scene.secondaryCharacterAssetId
+        ? resolveSceneActorProfile(
+            characterProfiles,
+            scene.secondaryCharacter ?? 'friend',
+            scene,
+            'secondary'
+          )
+        : undefined;
+    const actorY = isVertical ? safe.safeBottom + 44 : height * 0.91;
+    const actorScale = isVertical ? Math.min(1.52, 1.24 * safe.subjectScale) : 1.4;
+
+    drawLifelikeHuman(ctx, {
+      x: safe.clampX(isVertical ? width * 0.48 : width * 0.24, 58),
+      y: actorY,
+      scale: actorScale,
+      facing: 1,
+      role: actorProfile?.role ?? actorRole,
+      emotion: scene.emotion ?? 'calm',
+      pose: 'standing-speak',
+      time: globalTime,
+      speechEnergy,
+      isSpeaking: speechEnergy > 0.1,
+      viseme: speechEnergy > 0.1 ? viseme : undefined,
+      rimLightColor: 'rgba(247, 202, 123, 0.52)',
+      profile: actorProfile,
+    });
+
+    if (secProfile) {
+      drawLifelikeHuman(ctx, {
+        x: safe.clampX(isVertical ? width * 0.72 : width * 0.76, 52),
+        y: actorY + 4,
+        scale: actorScale * 0.92,
+        facing: -1,
+        role: secProfile.role ?? scene.secondaryCharacter ?? 'friend',
+        emotion: 'calm',
+        pose: 'listening',
+        time: globalTime + 0.4,
+        speechEnergy: 0,
+        isSpeaking: false,
+        rimLightColor: 'rgba(247, 202, 123, 0.36)',
+        profile: secProfile,
+      });
+    }
+  }
 }
 
 /**
@@ -1526,16 +1698,16 @@ export function renderExpandedWorld(
 ): boolean {
   switch (scene.setting) {
     case 'space-cosmos':
-      renderWorldSpaceCosmos(ctx, sceneTime, globalTime, width, height, speechEnergy, portraitZoom);
+      renderWorldSpaceCosmos(ctx, scene, sceneTime, globalTime, width, height, speechEnergy, portraitZoom, characterProfiles, viseme);
       return true;
     case 'ocean-voyage':
-      renderWorldOceanVoyage(ctx, scene, sceneTime, globalTime, width, height, portraitZoom);
+      renderWorldOceanVoyage(ctx, scene, sceneTime, globalTime, width, height, speechEnergy, portraitZoom, characterProfiles, viseme);
       return true;
     case 'mountain-summit':
       renderWorldMountainSummit(ctx, scene, globalTime, width, height, speechEnergy, portraitZoom, characterProfiles, viseme);
       return true;
     case 'train-journey':
-      renderWorldTrainJourney(ctx, sceneTime, globalTime, width, height);
+      renderWorldTrainJourney(ctx, scene, sceneTime, globalTime, width, height, speechEnergy, portraitZoom, characterProfiles, viseme);
       return true;
     case 'tech-ai-lab':
       renderWorldTechAiLab(ctx, scene, sceneTime, globalTime, width, height, speechEnergy, portraitZoom, characterProfiles, viseme);

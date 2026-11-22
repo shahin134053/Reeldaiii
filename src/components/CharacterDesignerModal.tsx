@@ -414,7 +414,9 @@ export const CharacterDesignerModal: React.FC<CharacterDesignerModalProps> = ({
                         setDraft((prev) => ({
                           ...draftFromCharacterAsset(
                             asset,
-                            prev.renderMode ?? 'illustrated-cutout',
+                            prev.sourceAssetId
+                              ? (prev.renderMode ?? 'illustrated-cutout')
+                              : 'illustrated-cutout',
                             prev.lockAcrossAllScenes
                           ),
                           sourceAssetId: asset.id,

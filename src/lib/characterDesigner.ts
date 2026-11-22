@@ -276,7 +276,8 @@ export function draftFromCharacterProfile(
 export function applyCustomCharacterToProject(
   project: AnimationProject,
   customProfile: CharacterProfile,
-  lockAcrossAllScenes = true
+  lockAcrossAllScenes = true,
+  targetSceneId?: string
 ): AnimationProject {
   const existing = project.characterProfiles ?? [];
   const filtered = existing.filter(
@@ -284,35 +285,37 @@ export function applyCustomCharacterToProject(
   );
   const nextProfiles: CharacterProfile[] = [customProfile, ...filtered];
 
+  const renderMode = customProfile.sourceAssetId
+    ? (customProfile.renderMode ?? 'rig-sync')
+    : 'rig-sync';
+
+  const applyToScene = (scene: AnimationProject['scenes'][number]) => {
+    const restIds = (scene.characterIds ?? []).filter(
+      (id) => id !== customProfile.characterId
+    );
+    return {
+      ...scene,
+      primaryCharacter: customProfile.role,
+      primaryCharacterAssetId: customProfile.sourceAssetId,
+      characterRenderMode: renderMode,
+      characterIds: [customProfile.characterId, ...restIds],
+      presetSceneId: undefined,
+      customSvg: undefined,
+    };
+  };
+
+  const roleMatchesAny = project.scenes.some(
+    (scene) => scene.primaryCharacter === customProfile.role
+  );
+
   const nextScenes = lockAcrossAllScenes
-    ? project.scenes.map((scene) => {
-        const restIds = (scene.characterIds ?? []).filter(
-          (id) => id !== customProfile.characterId
-        );
-        return {
-          ...scene,
-          primaryCharacter: customProfile.role,
-          primaryCharacterAssetId: customProfile.sourceAssetId,
-          characterRenderMode: customProfile.sourceAssetId
-            ? (customProfile.renderMode ?? 'rig-sync')
-            : 'rig-sync',
-          characterIds: [customProfile.characterId, ...restIds],
-        };
-      })
-    : project.scenes.map((scene) =>
-        scene.primaryCharacter === customProfile.role
-          ? {
-              ...scene,
-              primaryCharacterAssetId: customProfile.sourceAssetId,
-              characterRenderMode: customProfile.sourceAssetId
-                ? (customProfile.renderMode ?? 'rig-sync')
-                : 'rig-sync',
-              characterIds: Array.from(
-                new Set([customProfile.characterId, ...(scene.characterIds ?? [])])
-              ),
-            }
-          : scene
-      );
+    ? project.scenes.map(applyToScene)
+    : project.scenes.map((scene) => {
+        const shouldUpdate =
+          scene.primaryCharacter === customProfile.role ||
+          (!roleMatchesAny && targetSceneId ? scene.id === targetSceneId : false);
+        return shouldUpdate ? applyToScene(scene) : scene;
+      });
 
   return {
     ...project,
