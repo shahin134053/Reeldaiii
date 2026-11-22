@@ -72,7 +72,6 @@ import { RedesignModal } from './components/RedesignModal';
 import { CharacterDesignerModal } from './components/CharacterDesignerModal';
 import { TimelineEditor } from './components/TimelineEditor';
 import { HomePage } from './components/HomePage';
-import { LivePresenceCornerWidget } from './components/LivePresenceCorner';
 import { StudioColumn } from './components/StudioColumn';
 import { DeveloperPage } from './components/DeveloperPage';
 import { UserManualPage } from './components/UserManualPage';
@@ -2390,8 +2389,6 @@ export default function App() {
         hasActiveProject={hasLoadedProject}
         onApplyCharacter={handleApplyCustomCharacter}
       />
-
-      <LivePresenceCornerWidget lang={lang} presence={livePresence} />
     </div>
   );
 }
