@@ -15,7 +15,7 @@ import {
   CharacterRole,
   EmotionTone,
 } from '../lib/storyCompiler';
-import { CharacterProfile } from '../lib/storyIntelligence';
+import { CharacterProfile, CharacterRenderMode } from '../lib/storyIntelligence';
 import {
   CustomCharacterDraft,
   DEFAULT_CUSTOM_CHARACTER_DRAFT,
@@ -31,6 +31,11 @@ import {
   listSavedCustomCharacters,
   saveCustomCharacterPreset,
 } from '../lib/characterDesigner';
+import {
+  STUDIO_CHARACTER_ASSETS,
+  draftFromCharacterAsset,
+} from '../lib/studioAssetLibrary';
+import { getLoadedStudioImage, onStudioAssetLoaded } from '../animation/assetCanvasRenderer';
 import { drawLifelikeHuman } from '../animation/humanRig';
 import { AppLang, L } from '../lib/i18n';
 
@@ -97,6 +102,15 @@ export const CharacterDesignerModal: React.FC<CharacterDesignerModalProps> = ({
   }, [isOpen, onClose]);
 
   const liveProfile = useMemo(() => buildCustomCharacterProfile(draft), [draft]);
+
+  // Preload reference sheet image immediately whenever an illustrated character sheet is active
+  useEffect(() => {
+    if (!isOpen || !draft.referenceSheetUrl) return;
+    getLoadedStudioImage(draft.referenceSheetUrl);
+    return onStudioAssetLoaded(() => {
+      // Live RAF loop picks up newly decoded sprite automatically
+    });
+  }, [isOpen, draft.referenceSheetUrl]);
 
   // Live animated 2D Canvas character studio preview
   useEffect(() => {
@@ -287,6 +301,52 @@ export const CharacterDesignerModal: React.FC<CharacterDesignerModalProps> = ({
                   <span>{L(lang, 'Lip-Sync', 'লিপ-সিঙ্ক')}</span>
                 </button>
               </div>
+
+              {/* Stage Render Mode Toggle when an Illustrated 2D Sheet is active */}
+              {draft.sourceAssetId && (
+                <div className="mt-3 rounded-lg border border-[var(--ck-border)] bg-[var(--ck-surface)] p-2">
+                  <div className="mb-1.5 flex items-center justify-between text-[11px]">
+                    <span className="font-semibold text-[var(--ck-text)]">
+                      {L(lang, 'Stage Render Mode', 'স্টেজ রেন্ডার মোড')}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateDraft({
+                          sourceAssetId: undefined,
+                          referenceSheetUrl: undefined,
+                          renderMode: 'rig-sync',
+                        })
+                      }
+                      className="text-[10px] text-[var(--ck-text-muted)] hover:text-[var(--ck-accent)]"
+                    >
+                      {L(lang, 'Clear 2D Sheet', 'শিট সরান')}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(['rig-sync', 'illustrated-cutout'] as CharacterRenderMode[]).map((mode) => {
+                      const active = (draft.renderMode ?? 'rig-sync') === mode;
+                      return (
+                        <button
+                          key={mode}
+                          type="button"
+                          data-testid={`designer-mode-${mode}`}
+                          onClick={() => updateDraft({ renderMode: mode })}
+                          className={`rounded-md border px-2 py-1.5 text-[11px] font-medium transition-colors ${
+                            active
+                              ? 'border-[var(--ck-accent)] bg-[var(--ck-accent-soft)] text-[var(--ck-accent-soft-text)]'
+                              : 'border-[var(--ck-border)] bg-[var(--ck-inset)] text-[var(--ck-text-muted)] hover:text-[var(--ck-text)]'
+                          }`}
+                        >
+                          {mode === 'rig-sync'
+                            ? L(lang, 'Animated Lip-Sync Rig', 'অ্যানিমেটেড লিপ-সিঙ্ক রিগ')
+                            : L(lang, '2D Artwork Cutout', '২ডি আর্টওয়ার্ক কাটআউট')}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Saved Characters Shelf */}
@@ -329,6 +389,61 @@ export const CharacterDesignerModal: React.FC<CharacterDesignerModalProps> = ({
 
           {/* Right: Customization Controls */}
           <div className="cinema-scroll space-y-5 p-5 lg:col-span-7 lg:max-h-[68vh] lg:overflow-y-auto">
+            {/* Quick-Load from 27 Illustrated Character Sheets */}
+            <div className="space-y-2 rounded-xl border border-[var(--ck-border)] bg-[var(--ck-surface-alt)] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-[var(--ck-text)]">
+                  {L(lang, 'Load from 27 Illustrated Character Sheets', '২৭টি ২ডি ক্যারেক্টার শিট থেকে লোড করুন')}
+                </span>
+                <span className="text-[10px] text-[var(--ck-text-muted)]">
+                  {L(lang, 'Scroll horizontally →', 'ডানে স্ক্রল করুন →')}
+                </span>
+              </div>
+              <div
+                data-testid="designer-illustrated-strip"
+                className="cinema-scroll flex gap-2 overflow-x-auto pb-1.5"
+              >
+                {STUDIO_CHARACTER_ASSETS.map((asset) => {
+                  const isActive = draft.sourceAssetId === asset.id;
+                  return (
+                    <button
+                      key={asset.id}
+                      type="button"
+                      data-testid={`designer-sheet-${asset.id}`}
+                      onClick={() =>
+                        setDraft((prev) => ({
+                          ...draftFromCharacterAsset(
+                            asset,
+                            prev.renderMode ?? 'illustrated-cutout',
+                            prev.lockAcrossAllScenes
+                          ),
+                          sourceAssetId: asset.id,
+                          referenceSheetUrl: asset.url,
+                        }))
+                      }
+                      className={`group flex w-24 shrink-0 flex-col overflow-hidden rounded-lg border text-left transition-all ${
+                        isActive
+                          ? 'border-[var(--ck-accent)] bg-[var(--ck-accent-soft)] ring-1 ring-[var(--ck-accent)]'
+                          : 'border-[var(--ck-border)] bg-[var(--ck-surface)] hover:border-[var(--ck-accent)]/70'
+                      }`}
+                    >
+                      <div className="h-14 w-full overflow-hidden bg-[var(--ck-inset)]">
+                        <img
+                          src={asset.url}
+                          alt={lang === 'bn' ? asset.nameBn : asset.nameEn}
+                          loading="lazy"
+                          className="h-full w-full object-cover object-left-top transition-transform group-hover:scale-105"
+                        />
+                      </div>
+                      <span className="truncate px-1.5 py-1 text-[10px] font-medium text-[var(--ck-text)]">
+                        {lang === 'bn' ? asset.nameBn : asset.nameEn}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Name + Role */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>

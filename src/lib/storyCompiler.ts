@@ -10,6 +10,7 @@ import {
 } from './storyboard';
 import {
   CharacterProfile,
+  CharacterRenderMode,
   QualityAuditReport,
   StoryIntelligenceProfile,
   analyzeAudioSrtSync,
@@ -217,6 +218,16 @@ export interface SceneSpec {
   visualPrompt?: string;
   /** Optional bespoke multi-layered 1280x720 SVG illustration from Gemini AI Director */
   customSvg?: string;
+  /** Optional 2D illustrated environment asset ID from Studio Asset Pack */
+  customBackgroundAssetId?: string;
+  /** Optional resolved 2D illustrated environment URL */
+  customBackgroundUrl?: string;
+  /** Optional primary 2D character sheet asset ID override for this scene */
+  primaryCharacterAssetId?: string;
+  /** Optional secondary 2D character sheet asset ID override for this scene */
+  secondaryCharacterAssetId?: string;
+  /** Optional per-scene character render mode override */
+  characterRenderMode?: CharacterRenderMode;
   /** Optional link to a bespoke hand-directed scene (used by built-in showcase project) */
   presetSceneId?: SceneId;
 }
@@ -258,6 +269,10 @@ export interface AnimationProject {
   referenceMedia?: import('./referenceMediaAnalyzer').ReferenceMediaProfile | null;
   srtOffsetSeconds?: number;
   scriptPreviewMode?: boolean;
+  /** Project-wide toggle to auto-match uploaded 2D art environments when relevant */
+  autoUseIllustratedWorlds?: boolean;
+  /** Optional default 2D illustrated environment asset ID */
+  defaultEnvironmentAssetId?: string;
   duration: number;
   cues: SubtitleCue[];
   englishTranslations: Record<number, string>;
@@ -2285,6 +2300,8 @@ export function exportProjectToJson(project: AnimationProject): string {
     storyIntelligence: project.storyIntelligence,
     qualityAudit: project.qualityAudit,
     directorEngine: project.directorEngine ?? 'local-engine',
+    autoUseIllustratedWorlds: project.autoUseIllustratedWorlds,
+    defaultEnvironmentAssetId: project.defaultEnvironmentAssetId,
     duration: project.duration,
     cues: project.cues,
     englishTranslations: project.englishTranslations,
@@ -2317,6 +2334,10 @@ export function parseProjectFromJson(rawJson: string): AnimationProject {
     characterProfiles: Array.isArray(parsed.characterProfiles) ? parsed.characterProfiles : undefined,
     storyIntelligence: parsed.storyIntelligence,
     directorEngine: parsed.directorEngine === 'gemini-ai' ? 'gemini-ai' : 'local-engine',
+    autoUseIllustratedWorlds:
+      typeof parsed.autoUseIllustratedWorlds === 'boolean' ? parsed.autoUseIllustratedWorlds : undefined,
+    defaultEnvironmentAssetId:
+      typeof parsed.defaultEnvironmentAssetId === 'string' ? parsed.defaultEnvironmentAssetId : undefined,
     analysis: parsed.analysis,
     duration,
     cues,

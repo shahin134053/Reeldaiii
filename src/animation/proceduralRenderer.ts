@@ -31,24 +31,8 @@ import {
   renderVisualStyleGrade,
 } from './cinematicWorlds';
 import { renderDynamicStoryElements, renderExtraWorld } from './extraWorlds';
+import { resolveSceneActorProfile } from './assetCanvasRenderer';
 import { computeCameraTransform, getPortraitSafeLayout, PortraitSafeLayout, springValue } from './motionEngine';
-
-function resolveProfile(
-  profiles: CharacterProfile[] | undefined,
-  role: CharacterRole,
-  characterIds?: string[]
-): Partial<CharacterProfile> | undefined {
-  if (!profiles || profiles.length === 0) return undefined;
-  if (characterIds && characterIds.length > 0) {
-    const byIdAndRole = profiles.find(
-      (p) => characterIds.includes(p.characterId) && p.role === role
-    );
-    if (byIdAndRole) return byIdAndRole;
-    const byId = profiles.find((p) => characterIds.includes(p.characterId));
-    if (byId) return byId;
-  }
-  return profiles.find((p) => p.role === role);
-}
 
 function getSkyPalette(timeOfDay: TimeOfDay): Array<[number, string]> {
   switch (timeOfDay) {
@@ -668,8 +652,10 @@ function drawSceneHumans(
   const isWet = scene.weather === 'rain' || scene.weather === 'heavy-storm';
   const enterSpring = Math.min(1, springValue(sceneTime, { stiffness: 135, damping: 18 }));
   const enterOffsetY = (1 - enterSpring) * 14;
-  const pProf = resolveProfile(characterProfiles, primaryRole, scene.characterIds);
-  const sProf = secondaryRole ? resolveProfile(characterProfiles, secondaryRole, scene.characterIds) : undefined;
+  const pProf = resolveSceneActorProfile(characterProfiles, primaryRole, scene, 'primary');
+  const sProf = (secondaryRole || scene.secondaryCharacterAssetId)
+    ? resolveSceneActorProfile(characterProfiles, secondaryRole ?? 'friend', scene, 'secondary')
+    : undefined;
 
   // Close-up expressive storytelling portrait (shows realistic human face, blinking, lip-sync & hand gestures up close!)
   if (scene.cameraShot === 'close-up-portrait' && (scene.action === 'speaking-narrator' || scene.action === 'quote-card')) {
@@ -812,7 +798,9 @@ function drawSceneHumans(
       viseme: !turnToggle && isSpeaking ? viseme : undefined,
       isWet,
       rimLightColor: rimLight,
-      profile: secondaryRole ? sProf : resolveProfile(characterProfiles, 'friend', scene.characterIds),
+      profile: secondaryRole
+        ? sProf
+        : resolveSceneActorProfile(characterProfiles, 'friend', scene, 'secondary'),
     });
     return;
   }
@@ -1100,7 +1088,7 @@ function renderInteriorHome(
     isSpeaking: speechEnergy > 0.12,
     viseme: speechEnergy > 0.12 ? viseme : undefined,
     rimLightColor: rimLight,
-    profile: resolveProfile(characterProfiles, primaryRole, scene.characterIds),
+    profile: resolveSceneActorProfile(characterProfiles, primaryRole, scene, 'primary'),
   });
 
   const secRole = secondaryRole ?? (primaryRole === 'mother' ? 'youth-boy' : 'mother');
@@ -1116,7 +1104,7 @@ function renderInteriorHome(
     speechEnergy: 0,
     isSpeaking: false,
     rimLightColor: rimLight,
-    profile: resolveProfile(characterProfiles, secRole, scene.characterIds),
+    profile: resolveSceneActorProfile(characterProfiles, secRole, scene, 'secondary'),
   });
 
   if (scene.action === 'home-meal') {
@@ -1202,7 +1190,7 @@ function renderInteriorClassroom(
     viseme: speechEnergy > 0.12 ? viseme : undefined,
     prop: 'book',
     rimLightColor: rimLight,
-    profile: resolveProfile(characterProfiles, teacherRole, scene.characterIds),
+    profile: resolveSceneActorProfile(characterProfiles, teacherRole, scene, 'primary'),
   });
 
   // Student seated at desk safely inside frame
@@ -1221,7 +1209,7 @@ function renderInteriorClassroom(
     speechEnergy: 0,
     isSpeaking: false,
     rimLightColor: rimLight,
-    profile: resolveProfile(characterProfiles, studentRole, scene.characterIds),
+    profile: resolveSceneActorProfile(characterProfiles, studentRole, scene, 'secondary'),
   });
 
   ctx.fillStyle = '#7D5433';
@@ -1376,23 +1364,24 @@ function renderInteriorOffice(
     isSpeaking: speechEnergy > 0.12,
     viseme: speechEnergy > 0.12 ? viseme : undefined,
     rimLightColor: rimLight,
-    profile: resolveProfile(characterProfiles, officeRole, scene.characterIds),
+    profile: resolveSceneActorProfile(characterProfiles, officeRole, scene, 'primary'),
   });
 
-  if (secondaryRole) {
+  if (secondaryRole || scene.secondaryCharacterAssetId) {
+    const secOfficeRole = secondaryRole ?? 'friend';
     drawLifelikeHuman(ctx, {
       x: safe.clampX(deskX + deskW * 0.76, 52),
       y: deskY + 135,
       scale: s * 0.94,
       facing: -1,
-      role: secondaryRole,
+      role: secOfficeRole,
       emotion: 'calm',
       pose: 'listening',
       time: globalTime + 0.5,
       speechEnergy: 0,
       isSpeaking: false,
       rimLightColor: rimLight,
-      profile: resolveProfile(characterProfiles, secondaryRole, scene.characterIds),
+      profile: resolveSceneActorProfile(characterProfiles, secOfficeRole, scene, 'secondary'),
     });
   }
 
@@ -1515,7 +1504,7 @@ function renderInteriorHospital(
     isSpeaking: speechEnergy > 0.12,
     viseme: speechEnergy > 0.12 ? viseme : undefined,
     rimLightColor: rimLight,
-    profile: resolveProfile(characterProfiles, 'doctor', scene.characterIds),
+    profile: resolveSceneActorProfile(characterProfiles, 'doctor', scene, 'primary'),
   });
 
   const patientRole = secondaryRole ?? (primaryRole === 'doctor' ? 'mother' : primaryRole);
@@ -1531,6 +1520,6 @@ function renderInteriorHospital(
     speechEnergy: 0,
     isSpeaking: false,
     rimLightColor: rimLight,
-    profile: resolveProfile(characterProfiles, patientRole, scene.characterIds),
+    profile: resolveSceneActorProfile(characterProfiles, patientRole, scene, 'secondary'),
   });
 }

@@ -34,6 +34,7 @@ import {
   SubtitleStyle,
   renderProjectFrame,
 } from '../animation/renderer';
+import { onStudioAssetLoaded } from '../animation/assetCanvasRenderer';
 import { onSvgSceneLoaded } from '../lib/svgSanitizer';
 import { LiveBgmPlayer } from '../lib/bgmEngine';
 import { DEFAULT_BGM_CONFIG } from '../lib/redesignAndStudio';
@@ -219,11 +220,18 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     drawAtTime(timeRef.current);
   }, [project, subtitleMode, subtitleStyle, previewMode, portraitZoom, drawAtTime]);
 
-  // Repaint instantly whenever a bespoke AI SVG layer finishes async image decoding
+  // Repaint instantly whenever a bespoke AI SVG layer or 2D studio image finishes async decoding
   useEffect(() => {
-    return onSvgSceneLoaded(() => {
+    const unsubSvg = onSvgSceneLoaded(() => {
       drawAtTime(timeRef.current);
     });
+    const unsubAsset = onStudioAssetLoaded(() => {
+      drawAtTime(timeRef.current);
+    });
+    return () => {
+      unsubSvg();
+      unsubAsset();
+    };
   }, [drawAtTime]);
 
   // Apply explicit seek requests from parent

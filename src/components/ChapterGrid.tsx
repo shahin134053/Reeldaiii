@@ -7,6 +7,7 @@ import {
 } from '../lib/storyCompiler';
 import { formatTimecode } from '../lib/storyboard';
 import { DIMENSIONS_BY_RATIO, renderProjectFrame } from '../animation/renderer';
+import { onStudioAssetLoaded } from '../animation/assetCanvasRenderer';
 import { onSvgSceneLoaded } from '../lib/svgSanitizer';
 import { AppLang, L } from '../lib/i18n';
 
@@ -67,8 +68,12 @@ const ChapterThumbnail: React.FC<ChapterThumbnailProps> = ({
     };
 
     paint();
-    const unsubscribe = onSvgSceneLoaded(paint);
-    return unsubscribe;
+    const unsubSvg = onSvgSceneLoaded(paint);
+    const unsubAsset = onStudioAssetLoaded(paint);
+    return () => {
+      unsubSvg();
+      unsubAsset();
+    };
   }, [project, scene, aspectRatio, portraitZoom]);
 
   return (

@@ -8,20 +8,8 @@ import { CharacterProfile } from '../lib/storyIntelligence';
 import { VisemePose } from '../lib/visemeEngine';
 import { clamp01, drawSky, drawSun, drawTree, lerp } from './drawHelpers';
 import { drawLifelikeHuman, HumanPose } from './humanRig';
+import { resolveSceneActorProfile } from './assetCanvasRenderer';
 import { getPortraitSafeLayout, springValue } from './motionEngine';
-
-function resolveProfile(
-  profiles: CharacterProfile[] | undefined,
-  role: CharacterRole,
-  characterIds?: string[]
-): Partial<CharacterProfile> | undefined {
-  if (!profiles || profiles.length === 0) return undefined;
-  if (characterIds && characterIds.length > 0) {
-    const byId = profiles.find((p) => characterIds.includes(p.characterId) && p.role === role);
-    if (byId) return byId;
-  }
-  return profiles.find((p) => p.role === role);
-}
 
 function getCharacterPose(scene: SceneSpec): HumanPose {
   if (scene.cameraShot === 'close-up-portrait' && scene.action === 'speaking-narrator') {
@@ -88,7 +76,7 @@ function drawWorldCast(
       viseme: isSpeaking ? viseme : undefined,
       prop: scene.prop ?? 'none',
       rimLightColor: rimLight,
-      profile: resolveProfile(characterProfiles, primaryRole, scene.characterIds),
+      profile: resolveSceneActorProfile(characterProfiles, primaryRole, scene, 'primary'),
     });
     return;
   }
@@ -98,7 +86,7 @@ function drawWorldCast(
     const xA = safe.clampX(width * 0.28, 54);
     const xB = safe.clampX(width * 0.72, 54);
     primaryX = dir === 1 ? lerp(xA, xB, progress) : lerp(xB, xA, progress);
-  } else if (secondaryRole) {
+  } else if (secondaryRole || scene.secondaryCharacterAssetId) {
     primaryX = safe.clampX(isVertical ? width * 0.37 : width * 0.41, 52);
   }
 
@@ -106,7 +94,7 @@ function drawWorldCast(
     x: primaryX,
     y: groundY + enterOffsetY,
     scale: unitScale,
-    facing: secondaryRole ? 1 : dir,
+    facing: secondaryRole || scene.secondaryCharacterAssetId ? 1 : dir,
     role: primaryRole,
     emotion: scene.emotion ?? 'calm',
     pose,
@@ -116,10 +104,11 @@ function drawWorldCast(
     viseme: isSpeaking ? viseme : undefined,
     prop: scene.prop ?? 'none',
     rimLightColor: rimLight,
-    profile: resolveProfile(characterProfiles, primaryRole, scene.characterIds),
+    profile: resolveSceneActorProfile(characterProfiles, primaryRole, scene, 'primary'),
   });
 
-  if (secondaryRole) {
+  if (secondaryRole || scene.secondaryCharacterAssetId) {
+    const secRole = secondaryRole ?? 'friend';
     const secX =
       pose === 'walking'
         ? safe.clampX(primaryX - dir * (isVertical ? 66 : 92), 46)
@@ -129,14 +118,14 @@ function drawWorldCast(
       y: groundY + 2 + enterOffsetY,
       scale: unitScale * 0.95,
       facing: pose === 'walking' ? dir : -1,
-      role: secondaryRole,
+      role: secRole,
       emotion: scene.emotion === 'sad' ? 'emotional' : 'calm',
       pose: pose === 'walking' ? 'walking' : pose === 'celebrating' ? 'celebrating' : 'listening',
       time: globalTime + 0.45,
       speechEnergy: 0,
       isSpeaking: false,
       rimLightColor: rimLight,
-      profile: resolveProfile(characterProfiles, secondaryRole, scene.characterIds),
+      profile: resolveSceneActorProfile(characterProfiles, secRole, scene, 'secondary'),
     });
   }
 }

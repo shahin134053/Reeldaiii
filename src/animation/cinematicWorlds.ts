@@ -11,20 +11,8 @@ import { VisemePose } from '../lib/visemeEngine';
 import { COLOR_PALETTES, ColorPaletteId } from '../lib/redesignAndStudio';
 import { clamp01, drawMonsoonRain, drawSky, lerp } from './drawHelpers';
 import { drawLifelikeHuman } from './humanRig';
+import { resolveSceneActorProfile } from './assetCanvasRenderer';
 import { getPortraitSafeLayout, springValue } from './motionEngine';
-
-function resolveProfile(
-  profiles: CharacterProfile[] | undefined,
-  role: CharacterRole,
-  characterIds?: string[]
-): Partial<CharacterProfile> | undefined {
-  if (!profiles || profiles.length === 0) return undefined;
-  if (characterIds && characterIds.length > 0) {
-    const byId = profiles.find((p) => characterIds.includes(p.characterId) && p.role === role);
-    if (byId) return byId;
-  }
-  return profiles.find((p) => p.role === role);
-}
 
 /**
  * Renders rich atmospheric effects (volumetric sunbeams, snow, embers, fireflies, stars, rain, dust)
@@ -928,7 +916,7 @@ export function renderWorldMountainSummit(
     isSpeaking: speechEnergy > 0.12,
     viseme: speechEnergy > 0.12 ? viseme : undefined,
     rimLightColor: 'rgba(255, 206, 128, 0.62)',
-    profile: resolveProfile(characterProfiles, heroRole, scene.characterIds),
+    profile: resolveSceneActorProfile(characterProfiles, heroRole, scene, 'primary'),
   });
 }
 
@@ -1144,7 +1132,7 @@ export function renderWorldTechAiLab(
     viseme: speechEnergy > 0.1 ? viseme : undefined,
     prop: 'laptop',
     rimLightColor: 'rgba(110, 226, 212, 0.58)',
-    profile: resolveProfile(characterProfiles, techRole, scene.characterIds),
+    profile: resolveSceneActorProfile(characterProfiles, techRole, scene, 'primary'),
   });
 }
 
@@ -1236,7 +1224,7 @@ export function renderWorldFinanceGrowth(
     isSpeaking: speechEnergy > 0.1,
     viseme: speechEnergy > 0.1 ? viseme : undefined,
     rimLightColor: 'rgba(247, 201, 104, 0.58)',
-    profile: resolveProfile(characterProfiles, bizRole, scene.characterIds),
+    profile: resolveSceneActorProfile(characterProfiles, bizRole, scene, 'primary'),
   });
 }
 
@@ -1336,7 +1324,7 @@ export function renderWorldSportsArena(
     isSpeaking: speechEnergy > 0.12,
     viseme: speechEnergy > 0.12 ? viseme : undefined,
     rimLightColor: 'rgba(255, 246, 210, 0.62)',
-    profile: resolveProfile(characterProfiles, sportRole, scene.characterIds),
+    profile: resolveSceneActorProfile(characterProfiles, sportRole, scene, 'primary'),
   });
 }
 
@@ -1432,7 +1420,7 @@ export function renderWorldAncientPalace(
     viseme: speechEnergy > 0.1 ? viseme : undefined,
     prop: 'lantern',
     rimLightColor: 'rgba(255, 196, 102, 0.64)',
-    profile: resolveProfile(characterProfiles, palaceRole, scene.characterIds),
+    profile: resolveSceneActorProfile(characterProfiles, palaceRole, scene, 'primary'),
   });
 }
 
@@ -1517,7 +1505,7 @@ export function renderWorldStageSpotlight(
     isSpeaking: speechEnergy > 0.09,
     viseme: speechEnergy > 0.09 ? viseme : undefined,
     rimLightColor: 'rgba(255, 222, 148, 0.68)',
-    profile: resolveProfile(characterProfiles, stageRole, scene.characterIds),
+    profile: resolveSceneActorProfile(characterProfiles, stageRole, scene, 'primary'),
   });
 }
 

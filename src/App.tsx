@@ -47,6 +47,7 @@ import {
 import {
   AudioSrtSyncReport,
   CharacterProfile,
+  CharacterRenderMode,
   PipelineStepState,
   PipelineStepStatus,
   SceneStatusEntry,
@@ -59,6 +60,7 @@ import {
   validateGenerationInputs,
 } from './lib/storyIntelligence';
 import { preloadSceneSvgs } from './lib/svgSanitizer';
+import { preloadStudioAssetsForScenes } from './animation/assetCanvasRenderer';
 import { SubtitleMode, SubtitleStyle, getWatermarkImage } from './animation/renderer';
 import { REELDAIII_BRAND } from './lib/brandAssets';
 import { VideoPlayer, PreviewMode, ExportFormatChoice } from './components/VideoPlayer';
@@ -70,6 +72,19 @@ import { CreateWorkspace, StoryIntakePayload } from './components/CreateWorkspac
 import { ProcessingOverlay } from './components/ProcessingOverlay';
 import { RedesignModal } from './components/RedesignModal';
 import { CharacterDesignerModal } from './components/CharacterDesignerModal';
+import {
+  AssetPickerTab,
+  StudioAssetPickerModal,
+} from './components/StudioAssetPickerModal';
+import {
+  StudioCharacterAsset,
+  StudioEnvironmentAsset,
+  applyAutoIllustratedEnvironmentsToProject,
+  applyCharacterAssetToProject,
+  applyEnvironmentAssetToProject,
+  getCharacterAssetById,
+  getEnvironmentAssetById,
+} from './lib/studioAssetLibrary';
 import { TimelineEditor } from './components/TimelineEditor';
 import { HomePage } from './components/HomePage';
 import { StudioColumn } from './components/StudioColumn';
@@ -221,6 +236,15 @@ export default function App() {
   const [isCharacterDesignerOpen, setIsCharacterDesignerOpen] = useState<boolean>(false);
   const [customCharacterProfile, setCustomCharacterProfile] = useState<CharacterProfile | null>(null);
   const [customCharacterDraft, setCustomCharacterDraft] = useState<CustomCharacterDraft | null>(null);
+  const [createCharacterAssetId, setCreateCharacterAssetId] = useState<string | null>(null);
+  const [createCharacterMode, setCreateCharacterMode] = useState<CharacterRenderMode>('rig-sync');
+  const [createEnvironmentAssetId, setCreateEnvironmentAssetId] = useState<string | null>(null);
+  const [createAutoIllustrated, setCreateAutoIllustrated] = useState<boolean>(false);
+  const [assetPickerState, setAssetPickerState] = useState<{
+    isOpen: boolean;
+    tab: AssetPickerTab;
+    contextMode: 'create' | 'studio';
+  }>({ isOpen: false, tab: 'characters', contextMode: 'create' });
   const [focusCinemaMode, setFocusCinemaMode] = useState<boolean>(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState<boolean>(false);
   const [savedDrafts, setSavedDrafts] = useState<SavedDraftRecord[]>(() => listSavedDrafts());
@@ -793,7 +817,7 @@ export default function App() {
         );
         setStep('motion-sync', 'completed', 'Audio envelope, blinks & transitions synchronized');
 
-        // Step 14: Apply Selected Story Template & Custom Character Lock + Automated QC Audit
+        // Step 14: Apply Selected Story Template, Custom Character, 2D Pack Assets & Automated QC Audit
         setStep('quality-control', 'processing', 'Auditing consistency, repetition & 9:16 bounds…');
         let auditedProject: AnimationProject = {
           ...finalProject,
@@ -810,9 +834,32 @@ export default function App() {
             payload.lockCustomCharacter ?? customCharacterDraft?.lockAcrossAllScenes ?? true
           );
         }
+        const pickedCharAssetId = payload.selectedCharacterAssetId ?? createCharacterAssetId;
+        if (pickedCharAssetId && effectiveCustomChar?.sourceAssetId !== pickedCharAssetId) {
+          const pickedCharAsset = getCharacterAssetById(pickedCharAssetId);
+          if (pickedCharAsset) {
+            auditedProject = applyCharacterAssetToProject(auditedProject, pickedCharAsset, {
+              scope: 'all',
+              slot: 'primary',
+              renderMode: payload.selectedCharacterMode ?? createCharacterMode,
+            });
+          }
+        }
+        const pickedEnvAssetId = payload.selectedEnvironmentAssetId ?? createEnvironmentAssetId;
+        if (pickedEnvAssetId) {
+          const pickedEnvAsset = getEnvironmentAssetById(pickedEnvAssetId);
+          if (pickedEnvAsset) {
+            auditedProject = applyEnvironmentAssetToProject(auditedProject, pickedEnvAsset, {
+              scope: 'all',
+            });
+          }
+        } else if (payload.autoUseIllustratedWorlds ?? createAutoIllustrated) {
+          auditedProject = applyAutoIllustratedEnvironmentsToProject(auditedProject);
+        }
         if (payload.referenceMedia) {
           auditedProject = applyReferenceMediaToProject(auditedProject, payload.referenceMedia);
         }
+        await preloadStudioAssetsForScenes(auditedProject.scenes, auditedProject.characterProfiles);
         const qcReport = auditProjectQuality(auditedProject);
         auditedProject.qualityAudit = qcReport;
 
@@ -878,7 +925,16 @@ export default function App() {
         revealProjectInStudio(compiledProject);
       }
     },
-    [aiDirectorAvailable, customCharacterDraft?.lockAcrossAllScenes, customCharacterProfile, revealProjectInStudio]
+    [
+      aiDirectorAvailable,
+      createAutoIllustrated,
+      createCharacterAssetId,
+      createCharacterMode,
+      createEnvironmentAssetId,
+      customCharacterDraft?.lockAcrossAllScenes,
+      customCharacterProfile,
+      revealProjectInStudio,
+    ]
   );
 
   const handleLoadDemo = useCallback(async () => {
@@ -1029,6 +1085,11 @@ export default function App() {
     (profile: CharacterProfile, draft: CustomCharacterDraft) => {
       setCustomCharacterProfile(profile);
       setCustomCharacterDraft(draft);
+      setCreateCharacterAssetId(draft.sourceAssetId ?? null);
+      setCreateCharacterMode(draft.renderMode ?? 'rig-sync');
+      if (draft.referenceSheetUrl) {
+        void preloadStudioAssetsForScenes([], [profile]);
+      }
       if (hasLoadedProject) {
         setProject((prev) => {
           const updated = applyCustomCharacterToProject(
@@ -1042,6 +1103,143 @@ export default function App() {
       }
     },
     [hasLoadedProject]
+  );
+
+  const handleOpenAssetPicker = useCallback(
+    (tab: AssetPickerTab, contextMode: 'create' | 'studio') => {
+      setAssetPickerState({ isOpen: true, tab, contextMode });
+    },
+    []
+  );
+
+  const handleSelectPickerCharacter = useCallback(
+    (
+      asset: StudioCharacterAsset | null,
+      options: {
+        slot: 'primary' | 'secondary';
+        scope: 'all' | 'scene';
+        renderMode: CharacterRenderMode;
+      }
+    ) => {
+      if (assetPickerState.contextMode === 'create') {
+        setCreateCharacterAssetId(asset?.id ?? null);
+        setCreateCharacterMode(options.renderMode);
+        return;
+      }
+
+      const activeId = activeScene.id;
+      if (!asset) {
+        setProject((prev) => {
+          const nextScenes = prev.scenes.map((sc) => {
+            if (options.scope === 'scene' && sc.id !== activeId) return sc;
+            if (options.slot === 'secondary') {
+              return { ...sc, secondaryCharacterAssetId: undefined };
+            }
+            return { ...sc, primaryCharacterAssetId: undefined };
+          });
+          const next: AnimationProject = { ...prev, scenes: nextScenes };
+          next.qualityAudit = auditProjectQuality(next);
+          return next;
+        });
+        return;
+      }
+
+      setProject((prev) => {
+        const updated = applyCharacterAssetToProject(prev, asset, {
+          scope: options.scope,
+          sceneId: activeId,
+          slot: options.slot,
+          renderMode: options.renderMode,
+        });
+        updated.qualityAudit = auditProjectQuality(updated);
+        void preloadStudioAssetsForScenes(updated.scenes, updated.characterProfiles);
+        return updated;
+      });
+    },
+    [activeScene.id, assetPickerState.contextMode]
+  );
+
+  const handleSelectPickerEnvironment = useCallback(
+    (asset: StudioEnvironmentAsset | null, options: { scope: 'all' | 'scene' }) => {
+      if (assetPickerState.contextMode === 'create') {
+        setCreateEnvironmentAssetId(asset?.id ?? null);
+        if (asset) setCreateAutoIllustrated(false);
+        return;
+      }
+
+      const activeId = activeScene.id;
+      setProject((prev) => {
+        const updated = applyEnvironmentAssetToProject(prev, asset, {
+          scope: options.scope,
+          sceneId: activeId,
+        });
+        updated.qualityAudit = auditProjectQuality(updated);
+        void preloadStudioAssetsForScenes(updated.scenes, updated.characterProfiles);
+        return updated;
+      });
+    },
+    [activeScene.id, assetPickerState.contextMode]
+  );
+
+  const handleToggleSceneCharacterMode = useCallback(
+    (mode: CharacterRenderMode) => {
+      const targetSceneId = activeScene.id;
+      setProject((prev) => {
+        const targetScene = prev.scenes.find((s) => s.id === targetSceneId);
+        const assetIds = [
+          targetScene?.primaryCharacterAssetId,
+          targetScene?.secondaryCharacterAssetId,
+        ].filter((id): id is string => Boolean(id));
+
+        const nextProfiles = (prev.characterProfiles ?? []).map((p) =>
+          p.sourceAssetId && assetIds.includes(p.sourceAssetId)
+            ? { ...p, renderMode: mode }
+            : p
+        );
+        const nextScenes = prev.scenes.map((sc) =>
+          sc.id === targetSceneId ? { ...sc, characterRenderMode: mode } : sc
+        );
+        const next: AnimationProject = {
+          ...prev,
+          characterProfiles: nextProfiles,
+          scenes: nextScenes,
+        };
+        next.qualityAudit = auditProjectQuality(next);
+        return next;
+      });
+    },
+    [activeScene.id]
+  );
+
+  const handleClearSceneEnvironment = useCallback(() => {
+    const targetSceneId = activeScene.id;
+    setProject((prev) => {
+      const updated = applyEnvironmentAssetToProject(prev, null, {
+        scope: 'scene',
+        sceneId: targetSceneId,
+      });
+      updated.qualityAudit = auditProjectQuality(updated);
+      return updated;
+    });
+  }, [activeScene.id]);
+
+  const handleClearSceneCharacter = useCallback(
+    (slot: 'primary' | 'secondary') => {
+      const targetSceneId = activeScene.id;
+      setProject((prev) => {
+        const nextScenes = prev.scenes.map((sc) => {
+          if (sc.id !== targetSceneId) return sc;
+          if (slot === 'secondary') {
+            return { ...sc, secondaryCharacterAssetId: undefined };
+          }
+          return { ...sc, primaryCharacterAssetId: undefined };
+        });
+        const next: AnimationProject = { ...prev, scenes: nextScenes };
+        next.qualityAudit = auditProjectQuality(next);
+        return next;
+      });
+    },
+    [activeScene.id]
   );
 
   const handleOpenCharacterDesigner = useCallback(() => {
@@ -1458,7 +1656,14 @@ export default function App() {
         return;
       }
 
-      if (isFormField || isExportOpen || isRedesignOpen || isCharacterDesignerOpen) return;
+      if (
+        isFormField ||
+        isExportOpen ||
+        isRedesignOpen ||
+        isCharacterDesignerOpen ||
+        assetPickerState.isOpen
+      )
+        return;
       if (activePage !== 'studio' || !hasLoadedProject || studioSection !== 'preview') return;
 
       if (e.code === 'Space') {
@@ -1486,6 +1691,7 @@ export default function App() {
   }, [
     activePage,
     activeScene.id,
+    assetPickerState.isOpen,
     handleSeekTo,
     hasLoadedProject,
     isExportOpen,
@@ -1779,6 +1985,18 @@ export default function App() {
                     setCustomCharacterProfile(null);
                     setCustomCharacterDraft(null);
                   }}
+                  selectedCharacterAssetId={createCharacterAssetId}
+                  selectedCharacterMode={createCharacterMode}
+                  selectedEnvironmentAssetId={createEnvironmentAssetId}
+                  autoUseIllustratedWorlds={createAutoIllustrated}
+                  onOpenAssetPicker={(tab) => handleOpenAssetPicker(tab, 'create')}
+                  onChangeCharacterMode={setCreateCharacterMode}
+                  onChangeAutoIllustrated={setCreateAutoIllustrated}
+                  onClearAssetSelections={() => {
+                    setCreateCharacterAssetId(null);
+                    setCreateEnvironmentAssetId(null);
+                    setCreateAutoIllustrated(false);
+                  }}
                   initialInputMode={studioInitialInputMode}
                 />
               )}
@@ -2026,6 +2244,10 @@ export default function App() {
                           onUpdateScene={handleUpdateScene}
                           onUpdateProjectStyle={handleUpdateProjectStyle}
                           onApplyReferenceMedia={handleApplyReferenceMedia}
+                          onOpenAssetPicker={(tab) => handleOpenAssetPicker(tab, 'studio')}
+                          onToggleSceneCharacterMode={handleToggleSceneCharacterMode}
+                          onClearSceneEnvironment={handleClearSceneEnvironment}
+                          onClearSceneCharacter={handleClearSceneCharacter}
                           onUpdateSubtitleConfig={handleUpdateSubtitleConfig}
                           onUpdateBrandingConfig={handleUpdateBrandingConfig}
                           onRegenerateScene={handleRegenerateScene}
@@ -2388,6 +2610,44 @@ export default function App() {
         initialDraft={customCharacterDraft}
         hasActiveProject={hasLoadedProject}
         onApplyCharacter={handleApplyCustomCharacter}
+      />
+
+      <StudioAssetPickerModal
+        lang={lang}
+        isOpen={assetPickerState.isOpen}
+        onClose={() => setAssetPickerState((prev) => ({ ...prev, isOpen: false }))}
+        initialTab={assetPickerState.tab}
+        contextMode={assetPickerState.contextMode}
+        activeSceneNumber={activeScene.chapterNumber}
+        selectedCharacterId={
+          assetPickerState.contextMode === 'create'
+            ? createCharacterAssetId
+            : activeScene.primaryCharacterAssetId ?? null
+        }
+        selectedSecondaryCharacterId={
+          assetPickerState.contextMode === 'studio'
+            ? activeScene.secondaryCharacterAssetId ?? null
+            : null
+        }
+        selectedEnvironmentId={
+          assetPickerState.contextMode === 'create'
+            ? createEnvironmentAssetId
+            : activeScene.customBackgroundAssetId ?? null
+        }
+        renderMode={
+          assetPickerState.contextMode === 'create'
+            ? createCharacterMode
+            : activeScene.characterRenderMode ?? 'rig-sync'
+        }
+        onChangeRenderMode={(mode) => {
+          if (assetPickerState.contextMode === 'create') {
+            setCreateCharacterMode(mode);
+          } else {
+            handleToggleSceneCharacterMode(mode);
+          }
+        }}
+        onSelectCharacter={handleSelectPickerCharacter}
+        onSelectEnvironment={handleSelectPickerEnvironment}
       />
     </div>
   );

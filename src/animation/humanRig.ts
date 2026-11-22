@@ -1,7 +1,9 @@
 import { CharacterRole, EmotionTone, StoryProp } from '../lib/storyCompiler';
 import { CharacterProfile } from '../lib/storyIntelligence';
+import { getCharacterAssetById } from '../lib/studioAssetLibrary';
 import { VisemePose } from '../lib/visemeEngine';
 import { drawGamchhaRect } from './drawHelpers';
+import { drawIllustratedCharacterCutout } from './assetCanvasRenderer';
 
 export type HumanPose =
   | 'standing-speak'
@@ -462,6 +464,14 @@ export function drawLifelikeHuman(ctx: CanvasRenderingContext2D, opts: LifelikeH
     rimLightColor = 'rgba(255, 224, 166, 0.28)',
     profile,
   } = opts;
+
+  if (profile?.renderMode === 'illustrated-cutout' && profile.sourceAssetId) {
+    const asset = getCharacterAssetById(profile.sourceAssetId);
+    if (asset) {
+      drawIllustratedCharacterCutout(ctx, opts, asset);
+      return;
+    }
+  }
 
   const baseStyle = ROLE_STYLES[role];
   const st: RoleStyle = profile

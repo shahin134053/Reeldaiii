@@ -8,6 +8,7 @@ import {
 import { formatTimecode } from '../lib/storyboard';
 import { SubtitleMode, SubtitleStyle } from '../animation/renderer';
 import { EXPORT_QUALITY_PRESETS, ExportQuality } from '../animation/motionEngine';
+import { preloadStudioAssetsForScenes } from '../animation/assetCanvasRenderer';
 import { ExportContainerFormat, exportAnimationVideo } from '../lib/videoExporter';
 import { AppLang, L } from '../lib/i18n';
 
@@ -143,6 +144,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     const completed: ReadyDownload[] = [];
 
     try {
+      await preloadStudioAssetsForScenes(project.scenes, project.characterProfiles);
       const preset = EXPORT_QUALITY_PRESETS[quality];
       for (let i = 0; i < ratiosToExport.length; i++) {
         const ratio = ratiosToExport[i];

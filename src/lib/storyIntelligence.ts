@@ -14,6 +14,8 @@ export type CharacterAccessory =
   | 'crown'
   | 'watch';
 
+export type CharacterRenderMode = 'rig-sync' | 'illustrated-cutout';
+
 export interface CharacterProfile {
   characterId: string;
   role:
@@ -47,6 +49,12 @@ export interface CharacterProfile {
   isElder: boolean;
   accessories: CharacterAccessory[];
   isCustom?: boolean;
+  /** Optional link to one of the 27 uploaded 2D Character Sheet assets */
+  sourceAssetId?: string;
+  /** Optional resolved URL of the uploaded 2D Character Sheet artwork */
+  referenceSheetUrl?: string;
+  /** Render mode: 'rig-sync' (full 10-viseme animated rig) or 'illustrated-cutout' (2D sheet artwork cutout) */
+  renderMode?: CharacterRenderMode;
 }
 
 export interface AudioSrtSyncReport {

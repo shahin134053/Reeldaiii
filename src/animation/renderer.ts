@@ -24,6 +24,8 @@ import {
 import { renderProceduralScene } from './proceduralRenderer';
 import { renderBespokeSvgScene } from './svgMotionRenderer';
 import { renderVisualStyleGrade } from './cinematicWorlds';
+import { renderIllustratedEnvironmentScene } from './assetCanvasRenderer';
+import { getEnvironmentAssetById } from '../lib/studioAssetLibrary';
 import { computeTransitionState } from './motionEngine';
 import { renderStoryChoreographyOverlay } from './storyChoreographer';
 import {
@@ -340,8 +342,27 @@ export function renderProjectFrame(
       if (activePaletteId !== 'heritage-gold' || project.visualStyle) {
         renderVisualStyleGrade(targetCtx, project.visualStyle, width, height, activePaletteId);
       }
+    } else if (!renderedBespokeSvg && (targetScene.customBackgroundAssetId || targetScene.customBackgroundUrl)) {
+      // Priority 3: Uploaded 2D Illustrated Environment Artwork + Dual-Mode 2D Cast
+      const envAsset = getEnvironmentAssetById(targetScene.customBackgroundAssetId);
+      renderIllustratedEnvironmentScene({
+        ctx: targetCtx,
+        scene: targetScene,
+        envAsset,
+        sceneTime: targetSceneTime,
+        globalTime: time,
+        width,
+        height,
+        speechEnergy,
+        visualStyle: project.visualStyle,
+        portraitZoom,
+        characterProfiles: project.characterProfiles,
+        paletteId: activePaletteId,
+        parallaxDepth,
+        viseme,
+      });
     } else if (!renderedBespokeSvg) {
-      // Priority 3: Upgraded 22-World Adaptive Cinema Engine with Voice-Synced Human Acting & Character Consistency
+      // Priority 4: Upgraded 32+ World Adaptive Cinema Engine with Voice-Synced Human Acting & Character Consistency
       renderProceduralScene(
         targetCtx,
         targetScene,

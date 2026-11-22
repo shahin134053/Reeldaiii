@@ -3,6 +3,7 @@ import {
   CharacterAccessory,
   CharacterBodyStructure,
   CharacterProfile,
+  CharacterRenderMode,
   formatCharacterBibleFromProfiles,
 } from './storyIntelligence';
 
@@ -38,6 +39,9 @@ export interface CustomCharacterDraft {
   hasGamchha: boolean;
   hasWatch: boolean;
   lockAcrossAllScenes: boolean;
+  sourceAssetId?: string;
+  referenceSheetUrl?: string;
+  renderMode?: CharacterRenderMode;
 }
 
 export interface HairStyleOption {
@@ -208,6 +212,9 @@ export function buildCustomCharacterProfile(draft: CustomCharacterDraft): Charac
     isElder: draft.isElder,
     accessories,
     isCustom: true,
+    sourceAssetId: draft.sourceAssetId,
+    referenceSheetUrl: draft.referenceSheetUrl,
+    renderMode: draft.renderMode ?? 'rig-sync',
   };
 }
 
@@ -254,6 +261,9 @@ export function draftFromCharacterProfile(
     hasGamchha: profile.accessories.includes('gamchha'),
     hasWatch: profile.accessories.includes('watch'),
     lockAcrossAllScenes,
+    sourceAssetId: profile.sourceAssetId,
+    referenceSheetUrl: profile.referenceSheetUrl,
+    renderMode: profile.renderMode ?? 'rig-sync',
   };
 }
 
@@ -282,6 +292,10 @@ export function applyCustomCharacterToProject(
         return {
           ...scene,
           primaryCharacter: customProfile.role,
+          primaryCharacterAssetId: customProfile.sourceAssetId,
+          characterRenderMode: customProfile.sourceAssetId
+            ? (customProfile.renderMode ?? 'rig-sync')
+            : 'rig-sync',
           characterIds: [customProfile.characterId, ...restIds],
         };
       })
@@ -289,6 +303,10 @@ export function applyCustomCharacterToProject(
         scene.primaryCharacter === customProfile.role
           ? {
               ...scene,
+              primaryCharacterAssetId: customProfile.sourceAssetId,
+              characterRenderMode: customProfile.sourceAssetId
+                ? (customProfile.renderMode ?? 'rig-sync')
+                : 'rig-sync',
               characterIds: Array.from(
                 new Set([customProfile.characterId, ...(scene.characterIds ?? [])])
               ),

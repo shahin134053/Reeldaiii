@@ -15,6 +15,9 @@ import {
   SlidersHorizontal,
   Mic,
   UserCog,
+  Layers,
+  Image as ImageIcon,
+  RotateCcw,
 } from 'lucide-react';
 import {
   AnimationProject,
@@ -27,6 +30,7 @@ import { parseSrt } from '../lib/srtParser';
 import { formatTimecode } from '../lib/storyboard';
 import {
   CharacterProfile,
+  CharacterRenderMode,
   analyzeAudioSrtSync,
   buildSampleNarrationWavUrl,
   validateGenerationInputs,
@@ -42,6 +46,11 @@ import {
 } from '../lib/referenceMediaAnalyzer';
 import { getWatermarkImage } from '../animation/renderer';
 import { AppLang, L } from '../lib/i18n';
+import {
+  getCharacterAssetById,
+  getEnvironmentAssetById,
+} from '../lib/studioAssetLibrary';
+import type { AssetPickerTab } from './StudioAssetPickerModal';
 
 export interface StoryIntakePayload {
   title?: string;
@@ -56,6 +65,10 @@ export interface StoryIntakePayload {
   customCharacter?: CharacterProfile | null;
   lockCustomCharacter?: boolean;
   referenceMedia?: ReferenceMediaProfile | null;
+  selectedCharacterAssetId?: string | null;
+  selectedCharacterMode?: CharacterRenderMode;
+  selectedEnvironmentAssetId?: string | null;
+  autoUseIllustratedWorlds?: boolean;
 }
 
 interface CreateWorkspaceProps {
@@ -73,6 +86,14 @@ interface CreateWorkspaceProps {
   lockCustomCharacter?: boolean;
   onOpenCharacterDesigner?: () => void;
   onClearCustomCharacter?: () => void;
+  selectedCharacterAssetId?: string | null;
+  selectedCharacterMode?: CharacterRenderMode;
+  selectedEnvironmentAssetId?: string | null;
+  autoUseIllustratedWorlds?: boolean;
+  onOpenAssetPicker?: (tab: AssetPickerTab) => void;
+  onChangeCharacterMode?: (mode: CharacterRenderMode) => void;
+  onChangeAutoIllustrated?: (enabled: boolean) => void;
+  onClearAssetSelections?: () => void;
   initialInputMode?: 'upload' | 'record' | 'script';
 }
 
@@ -128,6 +149,14 @@ export const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({
   lockCustomCharacter = true,
   onOpenCharacterDesigner,
   onClearCustomCharacter,
+  selectedCharacterAssetId = null,
+  selectedCharacterMode = 'rig-sync',
+  selectedEnvironmentAssetId = null,
+  autoUseIllustratedWorlds = false,
+  onOpenAssetPicker,
+  onChangeCharacterMode,
+  onChangeAutoIllustrated,
+  onClearAssetSelections,
   initialInputMode,
 }) => {
   const [title, setTitle] = useState<string>('');
@@ -364,6 +393,10 @@ export const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({
       customCharacter,
       lockCustomCharacter,
       referenceMedia,
+      selectedCharacterAssetId,
+      selectedCharacterMode,
+      selectedEnvironmentAssetId,
+      autoUseIllustratedWorlds,
     });
   };
 
@@ -742,6 +775,195 @@ export const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({
             onSelectTemplate={handleSelectStoryTemplate}
             onLoadTemplateScript={handleLoadTemplateScript}
           />
+
+          {/* 2D Character & Environment Studio Pack (27 Characters + 27 Environments) */}
+          {onOpenAssetPicker && (
+            <div
+              data-testid="studio-asset-pack-strip"
+              className="space-y-3 rounded-xl border border-[var(--ck-border)] bg-[var(--ck-surface-alt)] p-4"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--ck-accent-soft)] text-[var(--ck-accent)]">
+                    <Layers className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-semibold text-[var(--ck-text)]">
+                      {L(
+                        lang,
+                        '2D Character & Environment Studio Pack (54)',
+                        '২ডি ক্যারেক্টার ও এনভায়রনমেন্ট স্টুডিও প্যাক (৫৪টি)'
+                      )}
+                    </h3>
+                    <p className="text-[11px] text-[var(--ck-text-muted)]">
+                      {L(
+                        lang,
+                        'Pick any illustrated character sheet (as lip-sync rig or 2D cutout) and pair with any 2D environment.',
+                        '২৭টি চরিত্রের যেকোনোটি (লিপ-সিঙ্ক রিগ বা ২ডি কাটআউট) এবং ২৭টি পরিবেশের যেকোনোটি সহজে বেছে নিন।'
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                {(selectedCharacterAssetId || selectedEnvironmentAssetId || autoUseIllustratedWorlds) &&
+                  onClearAssetSelections && (
+                    <button
+                      type="button"
+                      data-testid="clear-asset-pack-btn"
+                      onClick={onClearAssetSelections}
+                      className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--ck-border)] px-2 text-[11px] text-[var(--ck-text-muted)] hover:border-[var(--ck-accent)] hover:text-[var(--ck-text)]"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      <span>{L(lang, 'Reset Pack', 'রিসেট')}</span>
+                    </button>
+                  )}
+              </div>
+
+              {(() => {
+                const pickedChar = getCharacterAssetById(selectedCharacterAssetId);
+                const pickedEnv = getEnvironmentAssetById(selectedEnvironmentAssetId);
+                return (
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                    {/* Selected Character Card */}
+                    <div className="flex flex-col justify-between gap-2 rounded-lg border border-[var(--ck-border)] bg-[var(--ck-surface)] p-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {pickedChar ? (
+                          <img
+                            src={pickedChar.url}
+                            alt={lang === 'bn' ? pickedChar.nameBn : pickedChar.nameEn}
+                            className="h-11 w-14 shrink-0 rounded-md border border-[var(--ck-border)] object-cover bg-[var(--ck-inset)]"
+                          />
+                        ) : (
+                          <div className="flex h-11 w-14 shrink-0 items-center justify-center rounded-md border border-dashed border-[var(--ck-border-strong)] bg-[var(--ck-inset)] text-[var(--ck-text-muted)]">
+                            <UserCog className="h-4 w-4" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[10px] font-medium uppercase tracking-wide text-[var(--ck-text-muted)]">
+                            {L(lang, '2D Character Sheet', '২ডি ক্যারেক্টার')}
+                          </div>
+                          <div className="truncate text-xs font-semibold text-[var(--ck-text)]">
+                            {pickedChar
+                              ? lang === 'bn'
+                                ? pickedChar.nameBn
+                                : pickedChar.nameEn
+                              : L(lang, 'Auto / Story-Matched Cast', 'গল্প অনুযায়ী অটো চরিত্র')}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 pt-0.5">
+                        {pickedChar && onChangeCharacterMode ? (
+                          <div
+                            role="group"
+                            aria-label={L(lang, 'Character render style', 'ক্যারেক্টার রেন্ডার স্টাইল')}
+                            className="inline-flex rounded-md border border-[var(--ck-border)] bg-[var(--ck-inset)] p-0.5"
+                          >
+                            <button
+                              type="button"
+                              data-testid="create-mode-rig-btn"
+                              onClick={() => onChangeCharacterMode('rig-sync')}
+                              className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                                selectedCharacterMode === 'rig-sync'
+                                  ? 'bg-[var(--ck-accent)] text-[var(--ck-accent-fg)]'
+                                  : 'text-[var(--ck-text-muted)] hover:text-[var(--ck-text)]'
+                              }`}
+                            >
+                              {L(lang, 'Rig Lip-Sync', 'লিপ-সিঙ্ক রিগ')}
+                            </button>
+                            <button
+                              type="button"
+                              data-testid="create-mode-cutout-btn"
+                              onClick={() => onChangeCharacterMode('illustrated-cutout')}
+                              className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                                selectedCharacterMode === 'illustrated-cutout'
+                                  ? 'bg-[var(--ck-accent)] text-[var(--ck-accent-fg)]'
+                                  : 'text-[var(--ck-text-muted)] hover:text-[var(--ck-text)]'
+                              }`}
+                            >
+                              {L(lang, '2D Cutout', '২ডি কাটআউট')}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-[var(--ck-text-faint)]">
+                            {L(lang, '27 sheets available', '২৭টি রেডি চরিত্র')}
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          data-testid="browse-2d-characters-btn"
+                          onClick={() => onOpenAssetPicker('characters')}
+                          className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--ck-accent)]/60 bg-[var(--ck-accent-soft)] px-2.5 text-[11px] font-semibold text-[var(--ck-accent-soft-text)] hover:bg-[var(--ck-accent-soft-hover)] whitespace-nowrap"
+                        >
+                          <span>{L(lang, 'Browse 27 Characters', '২৭টি চরিত্র দেখুন')}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Selected Environment Card */}
+                    <div className="flex flex-col justify-between gap-2 rounded-lg border border-[var(--ck-border)] bg-[var(--ck-surface)] p-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {pickedEnv ? (
+                          <img
+                            src={pickedEnv.url}
+                            alt={lang === 'bn' ? pickedEnv.nameBn : pickedEnv.nameEn}
+                            className="h-11 w-14 shrink-0 rounded-md border border-[var(--ck-border)] object-cover bg-[var(--ck-inset)]"
+                          />
+                        ) : (
+                          <div className="flex h-11 w-14 shrink-0 items-center justify-center rounded-md border border-dashed border-[var(--ck-border-strong)] bg-[var(--ck-inset)] text-[var(--ck-text-muted)]">
+                            <ImageIcon className="h-4 w-4" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[10px] font-medium uppercase tracking-wide text-[var(--ck-text-muted)]">
+                            {L(lang, '2D Environment World', '২ডি এনভায়রনমেন্ট')}
+                          </div>
+                          <div className="truncate text-xs font-semibold text-[var(--ck-text)]">
+                            {pickedEnv
+                              ? lang === 'bn'
+                                ? pickedEnv.nameBn
+                                : pickedEnv.nameEn
+                              : autoUseIllustratedWorlds
+                                ? L(lang, 'Auto-Match 27 Illustrated Worlds', 'গল্প অনুযায়ী অটো ২ডি জগৎ')
+                                : L(lang, '32+ Procedural Cinema Worlds', '৩২+ প্রোসিডিউরাল সিনেমা জগৎ')}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 pt-0.5">
+                        {onChangeAutoIllustrated && !pickedEnv ? (
+                          <label className="inline-flex cursor-pointer items-center gap-1.5 text-[10px] font-medium text-[var(--ck-text-secondary)]">
+                            <input
+                              type="checkbox"
+                              data-testid="auto-illustrated-env-checkbox"
+                              checked={autoUseIllustratedWorlds}
+                              onChange={(e) => onChangeAutoIllustrated(e.target.checked)}
+                              className="h-3.5 w-3.5 rounded accent-[var(--ck-accent)]"
+                            />
+                            <span>{L(lang, 'Auto-match 2D worlds', 'অটো ২ডি দৃশ্য ম্যাচ')}</span>
+                          </label>
+                        ) : (
+                          <span className="text-[10px] text-[var(--ck-text-faint)]">
+                            {L(lang, '27 illustrated scenes', '২৭টি রঙিন ব্যাকগ্রাউন্ড')}
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          data-testid="browse-2d-environments-btn"
+                          onClick={() => onOpenAssetPicker('environments')}
+                          className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--ck-accent)]/60 bg-[var(--ck-accent-soft)] px-2.5 text-[11px] font-semibold text-[var(--ck-accent-soft-text)] hover:bg-[var(--ck-accent-soft-hover)] whitespace-nowrap"
+                        >
+                          <span>{L(lang, 'Browse 27 Worlds', '২৭টি পরিবেশ দেখুন')}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           {/* Custom Character Designer Strip */}
           {onOpenCharacterDesigner && (

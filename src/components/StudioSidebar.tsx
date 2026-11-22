@@ -51,6 +51,7 @@ import { formatTimecode } from '../lib/storyboard';
 import {
   analyzeAudioSrtSync,
   buildSampleNarrationWavUrl,
+  CharacterRenderMode,
   validateGenerationInputs,
 } from '../lib/storyIntelligence';
 import {
@@ -72,6 +73,11 @@ import {
   setStoredPaidUser,
   verifyCustomBrandAccessCode,
 } from '../lib/brandAssets';
+import {
+  getCharacterAssetById,
+  getEnvironmentAssetById,
+} from '../lib/studioAssetLibrary';
+import type { AssetPickerTab } from './StudioAssetPickerModal';
 
 type StudioTab = 'director' | 'style' | 'upload';
 
@@ -90,6 +96,10 @@ interface StudioSidebarProps {
   onUpdateSubtitleConfig?: (patch: Partial<SubtitleConfig>) => void;
   onUpdateBrandingConfig?: (patch: Partial<BrandingConfig>) => void;
   onApplyReferenceMedia?: (profile: ReferenceMediaProfile | null) => void;
+  onOpenAssetPicker?: (tab: AssetPickerTab) => void;
+  onToggleSceneCharacterMode?: (mode: CharacterRenderMode) => void;
+  onClearSceneEnvironment?: () => void;
+  onClearSceneCharacter?: (slot: 'primary' | 'secondary') => void;
   onRegenerateScene?: (
     sceneId: string,
     instruction?: string,
@@ -120,6 +130,10 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
   onUpdateSubtitleConfig,
   onUpdateBrandingConfig,
   onApplyReferenceMedia,
+  onOpenAssetPicker,
+  onToggleSceneCharacterMode,
+  onClearSceneEnvironment,
+  onClearSceneCharacter,
   onRegenerateScene,
   onAddScene,
   onDeleteScene,
@@ -1423,15 +1437,29 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
           </div>
 
           <div>
-            <label htmlFor="scene-setting" className="block text-xs font-medium text-[var(--ck-text-secondary)]">
-              {L(lang, '2D Environment (32+ Worlds)', '২ডি পরিবেশ (৩২+ জগৎ)')}
-            </label>
+            <div className="flex items-center justify-between gap-2">
+              <label htmlFor="scene-setting" className="block text-xs font-medium text-[var(--ck-text-secondary)]">
+                {L(lang, '2D Environment (32+ Worlds)', '২ডি পরিবেশ (৩২+ জগৎ)')}
+              </label>
+              {onOpenAssetPicker && (
+                <button
+                  type="button"
+                  data-testid="sidebar-browse-2d-env-btn"
+                  onClick={() => onOpenAssetPicker('environments')}
+                  className="text-[11px] font-semibold text-[var(--ck-accent)] hover:underline whitespace-nowrap"
+                >
+                  {L(lang, 'Browse 27 Illustrated', '২৭টি ২ডি দৃশ্য দেখুন')}
+                </button>
+              )}
+            </div>
             <select
               id="scene-setting"
               value={activeScene.setting}
               onChange={(e) =>
                 onUpdateScene(activeScene.id, {
                   setting: e.target.value as SceneSetting,
+                  customBackgroundAssetId: undefined,
+                  customBackgroundUrl: undefined,
                   presetSceneId: undefined,
                   customSvg: undefined,
                 })
@@ -1444,13 +1472,66 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
                 </option>
               ))}
             </select>
+
+            {activeScene.customBackgroundAssetId && (
+              <div
+                data-testid="active-illustrated-env-badge"
+                className="mt-1.5 flex items-center justify-between gap-2 rounded-lg border border-[var(--ck-accent)]/40 bg-[var(--ck-accent-soft)] px-2.5 py-1.5"
+              >
+                {(() => {
+                  const envInfo = getEnvironmentAssetById(activeScene.customBackgroundAssetId);
+                  return (
+                    <>
+                      <div className="flex min-w-0 items-center gap-2">
+                        {envInfo && (
+                          <img
+                            src={envInfo.url}
+                            alt={lang === 'bn' ? envInfo.nameBn : envInfo.nameEn}
+                            className="h-7 w-10 shrink-0 rounded object-cover border border-black/15"
+                          />
+                        )}
+                        <span className="truncate text-[11px] font-semibold text-[var(--ck-accent-soft-text)]">
+                          {envInfo
+                            ? lang === 'bn'
+                              ? envInfo.nameBn
+                              : envInfo.nameEn
+                            : activeScene.customBackgroundAssetId}
+                        </span>
+                      </div>
+                      {onClearSceneEnvironment && (
+                        <button
+                          type="button"
+                          data-testid="sidebar-use-procedural-env-btn"
+                          onClick={onClearSceneEnvironment}
+                          className="shrink-0 rounded border border-[var(--ck-border)] bg-[var(--ck-surface)] px-2 py-0.5 text-[10px] font-medium text-[var(--ck-text)] hover:border-[var(--ck-accent)]"
+                        >
+                          {L(lang, 'Use Procedural', 'প্রোসিডিউরাল')}
+                        </button>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-2.5">
             <div>
-              <label htmlFor="scene-character" className="block text-xs font-medium text-[var(--ck-text-secondary)]">
-                {L(lang, 'Primary Character', 'প্রধান চরিত্র')}
-              </label>
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="scene-character" className="block text-xs font-medium text-[var(--ck-text-secondary)]">
+                  {L(lang, 'Primary Character', 'প্রধান চরিত্র')}
+                </label>
+                {onOpenAssetPicker && (
+                  <button
+                    type="button"
+                    data-testid="sidebar-swap-2d-char-btn"
+                    onClick={() => onOpenAssetPicker('characters')}
+                    className="text-[11px] font-semibold text-[var(--ck-accent)] hover:underline whitespace-nowrap"
+                  >
+                    {L(lang, 'Swap from 27 Characters', '২৭টি চরিত্র থেকে নিন')}
+                  </button>
+                )}
+              </div>
               <select
                 id="scene-character"
                 value={activeScene.primaryCharacter ?? 'narrator'}
@@ -1468,6 +1549,112 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
                   </option>
                 ))}
               </select>
+
+              {(activeScene.primaryCharacterAssetId || activeScene.secondaryCharacterAssetId) && (
+                <div className="mt-1.5 space-y-1.5 rounded-lg border border-[var(--ck-border)] bg-[var(--ck-inset)] p-2">
+                  {activeScene.primaryCharacterAssetId && (() => {
+                    const pChar = getCharacterAssetById(activeScene.primaryCharacterAssetId);
+                    const curMode = activeScene.characterRenderMode ?? 'rig-sync';
+                    return (
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <div className="flex min-w-0 items-center gap-2">
+                          {pChar && (
+                            <img
+                              src={pChar.url}
+                              alt={lang === 'bn' ? pChar.nameBn : pChar.nameEn}
+                              className="h-7 w-9 shrink-0 rounded object-cover border border-[var(--ck-border)]"
+                            />
+                          )}
+                          <span className="truncate text-[11px] font-semibold text-[var(--ck-text)]">
+                            {pChar
+                              ? lang === 'bn'
+                                ? pChar.nameBn
+                                : pChar.nameEn
+                              : activeScene.primaryCharacterAssetId}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {onToggleSceneCharacterMode && (
+                            <div className="inline-flex rounded border border-[var(--ck-border)] bg-[var(--ck-surface)] p-0.5">
+                              <button
+                                type="button"
+                                data-testid="sidebar-mode-rig-btn"
+                                onClick={() => onToggleSceneCharacterMode('rig-sync')}
+                                className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                  curMode === 'rig-sync'
+                                    ? 'bg-[var(--ck-accent)] text-[var(--ck-accent-fg)]'
+                                    : 'text-[var(--ck-text-muted)]'
+                                }`}
+                              >
+                                {L(lang, 'Rig', 'রিগ')}
+                              </button>
+                              <button
+                                type="button"
+                                data-testid="sidebar-mode-cutout-btn"
+                                onClick={() => onToggleSceneCharacterMode('illustrated-cutout')}
+                                className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                  curMode === 'illustrated-cutout'
+                                    ? 'bg-[var(--ck-accent)] text-[var(--ck-accent-fg)]'
+                                    : 'text-[var(--ck-text-muted)]'
+                                }`}
+                              >
+                                {L(lang, '2D Cutout', 'কাটআউট')}
+                              </button>
+                            </div>
+                          )}
+                          {onClearSceneCharacter && (
+                            <button
+                              type="button"
+                              onClick={() => onClearSceneCharacter('primary')}
+                              aria-label={L(lang, 'Reset primary 2D character', 'প্রধান চরিত্র রিসেট')}
+                              className="rounded p-1 text-[var(--ck-text-faint)] hover:text-[var(--ck-danger)]"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {activeScene.secondaryCharacterAssetId && (() => {
+                    const sChar = getCharacterAssetById(activeScene.secondaryCharacterAssetId);
+                    return (
+                      <div className="flex items-center justify-between gap-2 border-t border-[var(--ck-border-subtle)] pt-1.5">
+                        <div className="flex min-w-0 items-center gap-2">
+                          {sChar && (
+                            <img
+                              src={sChar.url}
+                              alt={lang === 'bn' ? sChar.nameBn : sChar.nameEn}
+                              className="h-6 w-8 shrink-0 rounded object-cover border border-[var(--ck-border)]"
+                            />
+                          )}
+                          <span className="truncate text-[10px] text-[var(--ck-text-muted)]">
+                            {L(lang, 'Co-Star #2:', 'সহ-চরিত্র ২:')}{' '}
+                            <strong className="text-[var(--ck-text)]">
+                              {sChar
+                                ? lang === 'bn'
+                                  ? sChar.nameBn
+                                  : sChar.nameEn
+                                : activeScene.secondaryCharacterAssetId}
+                            </strong>
+                          </span>
+                        </div>
+                        {onClearSceneCharacter && (
+                          <button
+                            type="button"
+                            onClick={() => onClearSceneCharacter('secondary')}
+                            aria-label={L(lang, 'Remove Co-Star 2D character', 'সহ-চরিত্র সরান')}
+                            className="rounded p-1 text-[var(--ck-text-faint)] hover:text-[var(--ck-danger)]"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
 
             <div>
