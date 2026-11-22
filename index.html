@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reeldaiii — Context-Aware 2D Storytelling Animation Studio</title>
+    <link
+      rel="icon"
+      type="image/png"
+      href="./assets/aistudio/Icon-Transparent-Favicon_a85ca1c4.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      href="./assets/aistudio/Icon-Transparent-Favicon_a85ca1c4.png"
+    />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="theme-color" content="#0A0C10" />
+    <meta name="author" content="Md Shahin" />
+    <meta
+      name="description"
+      content="Reeldaiii turns voiceover audio, SRT subtitles, and scripts into synchronized 16:9 and 9:16 2D storytelling animation videos right in your browser. Supports English and Bengali."
+    />
+    <meta property="og:site_name" content="Reeldaiii" />
+    <meta
+      property="og:title"
+      content="Reeldaiii — Context-Aware 2D Storytelling Animation Studio"
+    />
+    <meta
+      property="og:description"
+      content="Analyze voiceover audio, SRT subtitles, and stories to generate synchronized 16:9 YouTube and 9:16 Reels 2D animations in 4K UHD with Reeldaiii."
+    />
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:image"
+      content="./assets/aistudio/Logo-Primary-DarkBG_1dee2b7e.png"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="Reeldaiii — Context-Aware 2D Storytelling Animation Studio"
+    />
+    <meta
+      name="twitter:description"
+      content="Turn voiceover audio, SRT subtitles, and story scripts into synchronized 16:9 and 9:16 2D animation videos in your browser."
+    />
+    <meta
+      name="twitter:image"
+      content="./assets/aistudio/Logo-Primary-DarkBG_1dee2b7e.png"
+    />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Reeldaiii",
+        "alternateName": "Reeldaiii 2D Storytelling Animation Studio",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "All",
+        "inLanguage": ["en", "bn"],
+        "description": "Browser-native 2D storytelling animation studio that converts voiceover audio, SRT subtitles, and scripts into synchronized 16:9 YouTube and 9:16 Reels animated videos.",
+        "author": {
+          "@type": "Person",
+          "name": "Md Shahin",
+          "url": "https://github.com/shahin134053"
+        },
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Hind+Siliguri:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+Bengali:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      (function () {
+        try {
+          var qs = new URLSearchParams(window.location.search);
+          var p = qs.get('theme');
+          var s = localStorage.getItem('chitrakatha_ui_theme_v1');
+          var t = p === 'light' || p === 'dark' ? p : s === 'light' || s === 'dark' ? s : 'dark';
+          document.documentElement.classList.toggle('dark', t === 'dark');
+          document.documentElement.dataset.theme = t;
+          document.documentElement.style.colorScheme = t;
+
+          var lp = (qs.get('lang') || '').toLowerCase();
+          var ls = (localStorage.getItem('chitrakatha_ui_lang_v1') || '').toLowerCase();
+          var l = lp === 'bn' || lp === 'en' ? lp : ls === 'bn' || ls === 'en' ? ls : 'en';
+          document.documentElement.lang = l;
+          document.documentElement.dataset.lang = l;
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class="bg-[var(--ck-bg)] text-[var(--ck-text)] antialiased selection:bg-[var(--ck-accent)]/25 selection:text-[var(--ck-text)]">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script
+      src="https://www.supportkori.com/widget.js"
+      data-id="shahin134053"
+      data-message="Support Shahin"
+      data-color="#FFDD00"
+      data-position="right"
+    ></script>
+  </body>
+</html>

@@ -1,0 +1,157 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-display: "Noto Serif Bengali", "Fraunces", Georgia, serif;
+  --font-sans: "Hind Siliguri", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+:root {
+  --ck-bg: #f8f7f3;
+  --ck-header-bg: rgba(248, 247, 243, 0.94);
+  --ck-surface: #ffffff;
+  --ck-surface-alt: #f3f0e8;
+  --ck-surface-hover: #ebe6da;
+  --ck-inset: #f0ede5;
+  --ck-inset-deep: #e6e2d7;
+  --ck-border: #dfdbd0;
+  --ck-border-subtle: #e8e4db;
+  --ck-border-strong: #c8c1b2;
+  --ck-text: #111114;
+  --ck-text-secondary: #34332f;
+  --ck-text-muted: #5a574f;
+  --ck-text-faint: #767268;
+  --ck-accent: #e09100;
+  --ck-accent-bright: #c98000;
+  --ck-accent-fg: #111114;
+  --ck-accent-soft: #fff4db;
+  --ck-accent-soft-hover: #fde8b9;
+  --ck-accent-soft-text: #7a4d00;
+  --ck-success: #1d7a46;
+  --ck-success-bg: #eaf7ef;
+  --ck-success-border: #b3dec4;
+  --ck-success-text: #175c35;
+  --ck-danger: #b4232c;
+  --ck-danger-bg: #fdf0f1;
+  --ck-danger-border: #f0c2c5;
+  --ck-danger-text: #8c1b22;
+  --ck-warn-bg: #fef6e6;
+  --ck-warn-border: #ebd096;
+  --ck-warn-text: #7a4f0c;
+  --ck-overlay: rgba(17, 17, 20, 0.62);
+  --ck-scroll-track: #ece8df;
+  --ck-scroll-thumb: #c5bfb2;
+  --ck-scroll-thumb-hover: #a8a193;
+  --ck-thumb-border: #ffffff;
+}
+
+.dark {
+  --ck-bg: #0a0a0c;
+  --ck-header-bg: rgba(10, 10, 12, 0.94);
+  --ck-surface: #111115;
+  --ck-surface-alt: #16161c;
+  --ck-surface-hover: #1c1c24;
+  --ck-inset: #0c0c10;
+  --ck-inset-deep: #070709;
+  --ck-border: #24242e;
+  --ck-border-subtle: #1b1b22;
+  --ck-border-strong: #323240;
+  --ck-text: #f6f5f0;
+  --ck-text-secondary: #dcdad3;
+  --ck-text-muted: #a7a59e;
+  --ck-text-faint: #84827b;
+  --ck-accent: #ffac1c;
+  --ck-accent-bright: #ffbe45;
+  --ck-accent-fg: #0a0a0c;
+  --ck-accent-soft: #22190a;
+  --ck-accent-soft-hover: #2d210d;
+  --ck-accent-soft-text: #ffca63;
+  --ck-success: #5ec485;
+  --ck-success-bg: #0f1713;
+  --ck-success-border: #253d2f;
+  --ck-success-text: #cbe9d6;
+  --ck-danger: #e27878;
+  --ck-danger-bg: #1f1113;
+  --ck-danger-border: #522727;
+  --ck-danger-text: #f0b4b4;
+  --ck-warn-bg: #1f180b;
+  --ck-warn-border: #664914;
+  --ck-warn-text: #ffd984;
+  --ck-overlay: rgba(4, 4, 7, 0.82);
+  --ck-scroll-track: #111114;
+  --ck-scroll-thumb: #2a2a32;
+  --ck-scroll-thumb-hover: #3f3f4a;
+  --ck-thumb-border: #0a0a0c;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    font-family: var(--font-sans);
+    background-color: var(--ck-bg);
+    color: var(--ck-text);
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+}
+
+/* Cinema timeline scrubber styling */
+input[type="range"].cinema-scrubber {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"].cinema-scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--ck-accent);
+  border: 2px solid var(--ck-thumb-border);
+  box-shadow: 0 0 0 2px rgba(229, 169, 60, 0.35);
+  transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+input[type="range"].cinema-scrubber:hover::-webkit-slider-thumb {
+  transform: scale(1.18);
+}
+
+input[type="range"].cinema-scrubber::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--ck-accent);
+  border: 2px solid var(--ck-thumb-border);
+  box-shadow: 0 0 0 2px rgba(229, 169, 60, 0.35);
+}
+
+/* Custom subtle scrollbars for transcript drawer */
+.cinema-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.cinema-scroll::-webkit-scrollbar-track {
+  background: var(--ck-scroll-track);
+}
+
+.cinema-scroll::-webkit-scrollbar-thumb {
+  background: var(--ck-scroll-thumb);
+  border-radius: 9999px;
+}
+
+.cinema-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--ck-scroll-thumb-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

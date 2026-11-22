@@ -1,0 +1,6 @@
+{
+  "name": "Babar Rickshaw — Animated Short Film",
+  "description": "A synchronized 2D animated short film adaptation of the Bengali story Babar Rickshaw (Father's Rickshaw), complete with narrated audio, bilingual subtitles, interactive chapters, and WebM video export.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": []
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Reeldaiii — 2D Storytelling Animation Studio",
+  "short_name": "Reeldaiii",
+  "description": "Turn voiceover audio, SRT subtitles, and story scripts into synchronized 16:9 YouTube and 9:16 Reels 2D animation videos in English and Bengali.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0A0C10",
+  "theme_color": "#E5A93C",
+  "icons": [
+    {
+      "src": "./assets/aistudio/Icon-Transparent-Favicon_a85ca1c4.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
