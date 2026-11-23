@@ -776,7 +776,7 @@ export const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({
             onLoadTemplateScript={handleLoadTemplateScript}
           />
 
-          {/* 2D Character & Environment Studio Pack (27 Characters + 27 Environments) */}
+          {/* Animated 2D Character Cast (17 Characters) + Built-in Default Worlds */}
           {onOpenAssetPicker && (
             <div
               data-testid="studio-asset-pack-strip"
@@ -791,21 +791,21 @@ export const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({
                     <h3 className="text-xs font-semibold text-[var(--ck-text)]">
                       {L(
                         lang,
-                        '2D Character & Environment Studio Pack (54)',
-                        '২ডি ক্যারেক্টার ও এনভায়রনমেন্ট স্টুডিও প্যাক (৫৪টি)'
+                        '2D Animated Character Cast (17 Ready)',
+                        'অ্যানিমেটেড ২ডি ক্যারেক্টার কাস্ট (১৭টি রেডি)'
                       )}
                     </h3>
                     <p className="text-[11px] text-[var(--ck-text-muted)]">
                       {L(
                         lang,
-                        'Pick any illustrated character sheet (as lip-sync rig or 2D cutout) and pair with any 2D environment.',
-                        '২৭টি চরিত্রের যেকোনোটি (লিপ-সিঙ্ক রিগ বা ২ডি কাটআউট) এবং ২৭টি পরিবেশের যেকোনোটি সহজে বেছে নিন।'
+                        'Choose any of the 17 2D animated characters—they stride, gesture, and perform dynamically across all 32+ default worlds.',
+                        '১৭টি ২ডি চরিত্রের যেকোনোটি বেছে নিন — প্রতিটি চরিত্র ৩২+ ডিফল্ট পরিবেশে প্রপার অ্যানিমেশনসহ চলমান ও জীবন্ত হয়ে উঠবে।'
                       )}
                     </p>
                   </div>
                 </div>
 
-                {(selectedCharacterAssetId || selectedEnvironmentAssetId || autoUseIllustratedWorlds) &&
+                {selectedCharacterAssetId &&
                   onClearAssetSelections && (
                     <button
                       type="button"
@@ -814,14 +814,13 @@ export const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({
                       className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--ck-border)] px-2 text-[11px] text-[var(--ck-text-muted)] hover:border-[var(--ck-accent)] hover:text-[var(--ck-text)]"
                     >
                       <RotateCcw className="h-3 w-3" />
-                      <span>{L(lang, 'Reset Pack', 'রিসেট')}</span>
+                      <span>{L(lang, 'Reset Cast', 'রিসেট')}</span>
                     </button>
                   )}
               </div>
 
               {(() => {
                 const pickedChar = getCharacterAssetById(selectedCharacterAssetId);
-                const pickedEnv = getEnvironmentAssetById(selectedEnvironmentAssetId);
                 return (
                   <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                     {/* Selected Character Card */}
@@ -831,16 +830,16 @@ export const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({
                           <img
                             src={pickedChar.url}
                             alt={lang === 'bn' ? pickedChar.nameBn : pickedChar.nameEn}
-                            className="h-11 w-14 shrink-0 rounded-md border border-[var(--ck-border)] object-cover bg-[var(--ck-inset)]"
+                            className="h-12 w-12 shrink-0 rounded-md border border-[var(--ck-border)] bg-[#141720] object-contain p-0.5"
                           />
                         ) : (
-                          <div className="flex h-11 w-14 shrink-0 items-center justify-center rounded-md border border-dashed border-[var(--ck-border-strong)] bg-[var(--ck-inset)] text-[var(--ck-text-muted)]">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-dashed border-[var(--ck-border-strong)] bg-[var(--ck-inset)] text-[var(--ck-text-muted)]">
                             <UserCog className="h-4 w-4" />
                           </div>
                         )}
                         <div className="min-w-0 flex-1">
                           <div className="text-[10px] font-medium uppercase tracking-wide text-[var(--ck-text-muted)]">
-                            {L(lang, '2D Character Sheet', '২ডি ক্যারেক্টার')}
+                            {L(lang, '2D Animated Character', '২ডি অ্যানিমেটেড ক্যারেক্টার')}
                           </div>
                           <div className="truncate text-xs font-semibold text-[var(--ck-text)]">
                             {pickedChar
@@ -861,6 +860,18 @@ export const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({
                           >
                             <button
                               type="button"
+                              data-testid="create-mode-cutout-btn"
+                              onClick={() => onChangeCharacterMode('illustrated-cutout')}
+                              className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                                selectedCharacterMode === 'illustrated-cutout'
+                                  ? 'bg-[var(--ck-accent)] text-[var(--ck-accent-fg)]'
+                                  : 'text-[var(--ck-text-muted)] hover:text-[var(--ck-text)]'
+                              }`}
+                            >
+                              {L(lang, '2D Cutout', '২ডি অ্যানিমেশন')}
+                            </button>
+                            <button
+                              type="button"
                               data-testid="create-mode-rig-btn"
                               onClick={() => onChangeCharacterMode('rig-sync')}
                               className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${
@@ -871,22 +882,10 @@ export const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({
                             >
                               {L(lang, 'Rig Lip-Sync', 'লিপ-সিঙ্ক রিগ')}
                             </button>
-                            <button
-                              type="button"
-                              data-testid="create-mode-cutout-btn"
-                              onClick={() => onChangeCharacterMode('illustrated-cutout')}
-                              className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                                selectedCharacterMode === 'illustrated-cutout'
-                                  ? 'bg-[var(--ck-accent)] text-[var(--ck-accent-fg)]'
-                                  : 'text-[var(--ck-text-muted)] hover:text-[var(--ck-text)]'
-                              }`}
-                            >
-                              {L(lang, '2D Cutout', '২ডি কাটআউট')}
-                            </button>
                           </div>
                         ) : (
                           <span className="text-[10px] text-[var(--ck-text-faint)]">
-                            {L(lang, '27 sheets available', '২৭টি রেডি চরিত্র')}
+                            {L(lang, '17 animated characters ready', '১৭টি অ্যানিমেটেড চরিত্র')}
                           </span>
                         )}
 
@@ -896,67 +895,35 @@ export const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({
                           onClick={() => onOpenAssetPicker('characters')}
                           className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--ck-accent)]/60 bg-[var(--ck-accent-soft)] px-2.5 text-[11px] font-semibold text-[var(--ck-accent-soft-text)] hover:bg-[var(--ck-accent-soft-hover)] whitespace-nowrap"
                         >
-                          <span>{L(lang, 'Browse 27 Characters', '২৭টি চরিত্র দেখুন')}</span>
+                          <span>{L(lang, 'Choose Character (17)', '১৭টি চরিত্র দেখুন')}</span>
                         </button>
                       </div>
                     </div>
 
-                    {/* Selected Environment Card */}
+                    {/* Built-in Default Worlds Card */}
                     <div className="flex flex-col justify-between gap-2 rounded-lg border border-[var(--ck-border)] bg-[var(--ck-surface)] p-2.5">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        {pickedEnv ? (
-                          <img
-                            src={pickedEnv.url}
-                            alt={lang === 'bn' ? pickedEnv.nameBn : pickedEnv.nameEn}
-                            className="h-11 w-14 shrink-0 rounded-md border border-[var(--ck-border)] object-cover bg-[var(--ck-inset)]"
-                          />
-                        ) : (
-                          <div className="flex h-11 w-14 shrink-0 items-center justify-center rounded-md border border-dashed border-[var(--ck-border-strong)] bg-[var(--ck-inset)] text-[var(--ck-text-muted)]">
-                            <ImageIcon className="h-4 w-4" />
-                          </div>
-                        )}
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-[var(--ck-border)] bg-[var(--ck-accent-soft)] text-[var(--ck-accent)]">
+                          <ImageIcon className="h-4 w-4" />
+                        </div>
                         <div className="min-w-0 flex-1">
                           <div className="text-[10px] font-medium uppercase tracking-wide text-[var(--ck-text-muted)]">
-                            {L(lang, '2D Environment World', '২ডি এনভায়রনমেন্ট')}
+                            {L(lang, 'Default Cinema Environments', 'ডিফল্ট অ্যানিমেটেড পরিবেশ')}
                           </div>
                           <div className="truncate text-xs font-semibold text-[var(--ck-text)]">
-                            {pickedEnv
-                              ? lang === 'bn'
-                                ? pickedEnv.nameBn
-                                : pickedEnv.nameEn
-                              : autoUseIllustratedWorlds
-                                ? L(lang, 'Auto-Match 27 Illustrated Worlds', 'গল্প অনুযায়ী অটো ২ডি জগৎ')
-                                : L(lang, '32+ Procedural Cinema Worlds', '৩২+ প্রোসিডিউরাল সিনেমা জগৎ')}
+                            {L(lang, '32+ Built-In Procedural Worlds', '৩২+ বিল্ট-ইন প্রোসিডিউরাল জগৎ')}
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center justify-between gap-1.5 pt-0.5">
-                        {onChangeAutoIllustrated && !pickedEnv ? (
-                          <label className="inline-flex cursor-pointer items-center gap-1.5 text-[10px] font-medium text-[var(--ck-text-secondary)]">
-                            <input
-                              type="checkbox"
-                              data-testid="auto-illustrated-env-checkbox"
-                              checked={autoUseIllustratedWorlds}
-                              onChange={(e) => onChangeAutoIllustrated(e.target.checked)}
-                              className="h-3.5 w-3.5 rounded accent-[var(--ck-accent)]"
-                            />
-                            <span>{L(lang, 'Auto-match 2D worlds', 'অটো ২ডি দৃশ্য ম্যাচ')}</span>
-                          </label>
-                        ) : (
-                          <span className="text-[10px] text-[var(--ck-text-faint)]">
-                            {L(lang, '27 illustrated scenes', '২৭টি রঙিন ব্যাকগ্রাউন্ড')}
-                          </span>
-                        )}
-
-                        <button
-                          type="button"
-                          data-testid="browse-2d-environments-btn"
-                          onClick={() => onOpenAssetPicker('environments')}
-                          className="inline-flex h-7 items-center gap-1 rounded-md border border-[var(--ck-accent)]/60 bg-[var(--ck-accent-soft)] px-2.5 text-[11px] font-semibold text-[var(--ck-accent-soft-text)] hover:bg-[var(--ck-accent-soft-hover)] whitespace-nowrap"
-                        >
-                          <span>{L(lang, 'Browse 27 Worlds', '২৭টি পরিবেশ দেখুন')}</span>
-                        </button>
+                      <div className="flex items-center justify-between gap-1.5 pt-0.5 text-[10px] text-[var(--ck-text-muted)]">
+                        <span>
+                          {L(
+                            lang,
+                            'Village, city, school, hospital, river, cosmos & more adapt per scene.',
+                            'গ্রাম, শহর, স্কুল, হাসপাতাল, নদী, মহাকাশসহ প্রতিটি দৃশ্যে অটো ম্যাচ হয়।'
+                          )}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -981,7 +948,7 @@ export const CreateWorkspace: React.FC<CreateWorkspaceProps> = ({
                       <img
                         src={customAsset.url}
                         alt={customCharacter?.name ?? (lang === 'bn' ? customAsset.nameBn : customAsset.nameEn)}
-                        className="h-10 w-12 shrink-0 rounded-lg border border-[var(--ck-border)] object-cover object-left-top bg-[var(--ck-inset)]"
+                        className="h-11 w-11 shrink-0 rounded-lg border border-[var(--ck-border)] bg-[#141720] object-contain p-0.5"
                       />
                     );
                   }

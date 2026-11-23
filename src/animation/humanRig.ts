@@ -35,6 +35,10 @@ export interface LifelikeHumanOptions {
   rimLightColor?: string;
   /** Consistent visual DNA profile locked across all scenes */
   profile?: Partial<CharacterProfile>;
+  /** Optional horizontal pacing limit around anchor x */
+  maxOffsetX?: number;
+  /** Keep facing locked toward partner/camera during two-person dialogues */
+  lockFacing?: boolean;
 }
 
 interface RoleStyle {
@@ -513,15 +517,19 @@ export function drawLifelikeHuman(ctx: CanvasRenderingContext2D, opts: LifelikeH
   const h = st.heightRatio;
   const energy = isSpeaking ? Math.max(0.06, speechEnergy) : speechEnergy * 0.25;
 
-  // Natural biological rhythms + weight shift
-  const breath = Math.sin(time * 2.15 + x * 0.01) * 1.8;
+  // Natural biological rhythms + expressive stage pacing & weight shift
+  const breath = Math.sin(time * 2.15 + x * 0.01) * 2.2;
+  const paceSpan = Math.min(opts.maxOffsetX ?? 22, 22 * scale);
   const weightShiftX =
-    pose === 'standing-speak' || pose === 'listening'
-      ? Math.sin(time * 0.95) * (1.8 + energy * 1.6)
-      : 0;
+    pose === 'standing-speak' || pose === 'celebrating'
+      ? Math.sin(time * 0.85 + x * 0.015) * (paceSpan * 0.65) +
+        Math.sin(time * 1.9) * (2.4 + energy * 2.2)
+      : pose === 'listening'
+        ? Math.sin(time * 0.72 + x * 0.015) * (paceSpan * 0.35)
+        : 0;
   const headNod = isSpeaking
-    ? Math.sin(time * 5.8) * (0.048 * energy) + Math.sin(time * 1.9) * 0.025
-    : Math.sin(time * 1.4) * 0.02;
+    ? Math.sin(time * 5.8) * (0.055 * energy) + Math.sin(time * 1.9) * 0.03
+    : Math.sin(time * 1.4) * 0.025;
   const activeViseme: VisemePose | null = isSpeaking && viseme ? viseme : null;
   const jawDropPx = activeViseme
     ? activeViseme.jawDrop * 2.8
@@ -538,7 +546,12 @@ export function drawLifelikeHuman(ctx: CanvasRenderingContext2D, opts: LifelikeH
 
   const walkSpeed = pose === 'running' ? 9.5 : pose === 'walking' ? 5.2 : 0;
   const stridePhase = walkSpeed > 0 ? time * walkSpeed : 0;
-  const walkBounce = walkSpeed > 0 ? Math.abs(Math.sin(stridePhase)) * (pose === 'running' ? 6 : 3.2) : 0;
+  const walkBounce =
+    walkSpeed > 0
+      ? Math.abs(Math.sin(stridePhase)) * (pose === 'running' ? 6 : 3.2)
+      : pose === 'standing-speak' || pose === 'celebrating'
+        ? Math.abs(Math.sin(time * 2.6)) * (1.8 + energy * 2.0)
+        : 0;
   const torsoLean =
     pose === 'running'
       ? 0.16
@@ -1286,7 +1299,7 @@ export function drawLifelikeHuman(ctx: CanvasRenderingContext2D, opts: LifelikeH
  * Draws an anatomically distinct 2D mouth contour driven by continuous co-articulated VisemePose
  * parameters (lip press, labiodental teeth-lip tuck, sibilant slit, lifted tongue tip, rounded O/U, wide AA).
  */
-function drawVisemeMouth(
+export function drawVisemeMouth(
   ctx: CanvasRenderingContext2D,
   mouthX: number,
   mouthY: number,

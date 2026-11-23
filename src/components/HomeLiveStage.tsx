@@ -22,8 +22,26 @@ export function HomeLiveStage({ lang, onTryStoryInStudio }: HomeLiveStageProps) 
   const [selectedId, setSelectedId] = useState<string>(HOME_SHOWCASE_STORIES[0].id);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('16:9');
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [isVisible, setIsVisible] = useState<boolean>(false);
+  const sectionRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stageTimeRef = useRef<number>(1.2);
+
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setIsVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        setIsVisible(entries.some((entry) => entry.isIntersecting));
+      },
+      { rootMargin: '120px 0px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const activeStory = useMemo(
     () => HOME_SHOWCASE_STORIES.find((s) => s.id === selectedId) ?? HOME_SHOWCASE_STORIES[0],
@@ -111,7 +129,7 @@ export function HomeLiveStage({ lang, onTryStoryInStudio }: HomeLiveStageProps) 
 
     drawFrame(stageTimeRef.current);
 
-    if (!isPlaying || reducedMotion) {
+    if (!isPlaying || !isVisible || reducedMotion) {
       return;
     }
 
@@ -120,6 +138,11 @@ export function HomeLiveStage({ lang, onTryStoryInStudio }: HomeLiveStageProps) 
     const FRAME_INTERVAL_MS = 1000 / 24;
 
     const loop = (now: number) => {
+      if (document.hidden) {
+        lastTick = now;
+        rafId = window.requestAnimationFrame(loop);
+        return;
+      }
       const delta = now - lastTick;
       if (delta >= FRAME_INTERVAL_MS) {
         lastTick = now;
@@ -132,10 +155,11 @@ export function HomeLiveStage({ lang, onTryStoryInStudio }: HomeLiveStageProps) 
 
     rafId = window.requestAnimationFrame(loop);
     return () => window.cancelAnimationFrame(rafId);
-  }, [previewProject, aspectRatio, isPlaying]);
+  }, [previewProject, aspectRatio, isPlaying, isVisible]);
 
   return (
     <section
+      ref={sectionRef}
       aria-labelledby="live-stage-heading"
       data-testid="home-live-stage"
       className="space-y-6"

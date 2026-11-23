@@ -9,7 +9,12 @@ import { formatTimecode } from '../lib/storyboard';
 import { SubtitleMode, SubtitleStyle } from '../animation/renderer';
 import { EXPORT_QUALITY_PRESETS, ExportQuality } from '../animation/motionEngine';
 import { preloadStudioAssetsForScenes } from '../animation/assetCanvasRenderer';
-import { ExportContainerFormat, exportAnimationVideo } from '../lib/videoExporter';
+import {
+  ExportContainerFormat,
+  computeExportFrameSchedule,
+  exportAnimationVideo,
+  preloadDecodedAudio,
+} from '../lib/videoExporter';
 import { AppLang, L } from '../lib/i18n';
 
 export type ExportFormatChoice = 'both' | '16:9' | '9:16';
@@ -77,8 +82,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setFormatChoice(initialFormat);
+      if (project.audioUrl) {
+        void preloadDecodedAudio(project.audioUrl);
+      }
     }
-  }, [isOpen, initialFormat]);
+  }, [isOpen, initialFormat, project.audioUrl]);
 
   useEffect(() => {
     setSubtitleMode(defaultSubtitleMode);
@@ -144,17 +152,28 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     const completed: ReadyDownload[] = [];
 
     try {
+      const exportSessionStartMs = performance.now();
+      const SESSION_HARD_BUDGET_MS = 52_000;
       await preloadStudioAssetsForScenes(project.scenes, project.characterProfiles);
       const preset = EXPORT_QUALITY_PRESETS[quality];
       for (let i = 0; i < ratiosToExport.length; i++) {
         const ratio = ratiosToExport[i];
         const ratioTag = ratio === '16:9' ? '16x9-youtube' : '9x16-reels';
         const dims = preset.dimensions[ratio];
+        const schedule = computeExportFrameSchedule(endTime - startTime, quality);
+        const elapsedSoFarMs = performance.now() - exportSessionStartMs;
+        const passTargetWallMs =
+          ratiosToExport.length > 1
+            ? i === 0
+              ? 24_000
+              : Math.max(10_000, SESSION_HARD_BUDGET_MS - elapsedSoFarMs)
+            : Math.max(15_000, 46_000 - elapsedSoFarMs);
+
         setStepLabel(
           L(
             lang,
-            `Step ${i + 1} of ${ratiosToExport.length}: Encoding ${preset.shortLabel} ${containerFormat.toUpperCase()} · ${ratio} (${dims.width}×${dims.height})`,
-            `ধাপ ${i + 1}/${ratiosToExport.length}: ${preset.shortLabel} ${containerFormat.toUpperCase()} · ${ratio} (${dims.width}×${dims.height}) রেন্ডার হচ্ছে`
+            `Step ${i + 1} of ${ratiosToExport.length}: Encoding ${preset.shortLabel} ${containerFormat.toUpperCase()} · ${ratio} (${dims.width}×${dims.height} · ${schedule.fps}fps)`,
+            `ধাপ ${i + 1}/${ratiosToExport.length}: ${preset.shortLabel} ${containerFormat.toUpperCase()} · ${ratio} (${dims.width}×${dims.height} · ${schedule.fps}fps) রেন্ডার হচ্ছে`
           )
         );
 
@@ -168,7 +187,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           quality,
           containerFormat,
           portraitZoom,
-          fps: 24,
+          fps: schedule.fps,
+          targetMaxWallMs: passTargetWallMs,
           onProgress: (pct, _sec, detail) => {
             const overall = (i + pct) / ratiosToExport.length;
             setProgress(overall);

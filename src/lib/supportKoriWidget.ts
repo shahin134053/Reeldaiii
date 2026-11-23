@@ -164,12 +164,21 @@ export function ensureSupportKoriWidgetMounted(): void {
       iframeContainer = document.createElement('div');
       iframeContainer.className = 'sk-widget-iframe-container';
       const iframeSrc = `${cfg.widgetUrl}?parent=${encodeURIComponent(parentUrl)}`;
-      iframeContainer.innerHTML = `<iframe src="${iframeSrc}" title="Support Shahin on SupportKori" class="sk-widget-iframe"></iframe>`;
+      iframeContainer.dataset.iframeSrc = iframeSrc;
+      iframeContainer.innerHTML = `<iframe data-src="${iframeSrc}" loading="lazy" title="Support Shahin on SupportKori" class="sk-widget-iframe"></iframe>`;
       document.body.appendChild(iframeContainer);
     }
 
     btn.onclick = () => {
       if (!iframeContainer) return;
+      const opening = !iframeContainer.classList.contains('open');
+      if (opening) {
+        const frame = iframeContainer.querySelector<HTMLIFrameElement>('iframe');
+        if (frame && !frame.getAttribute('src')) {
+          const lazySrc = frame.getAttribute('data-src') || iframeContainer.dataset.iframeSrc;
+          if (lazySrc) frame.setAttribute('src', lazySrc);
+        }
+      }
       iframeContainer.classList.toggle('open');
     };
   }
@@ -217,8 +226,6 @@ export function ensureSupportKoriWidgetMounted(): void {
     closeBtn.onclick = (ev) => {
       ev.stopPropagation();
       if (iframeContainer?.classList.contains('open')) {
-        // Click the main button so widget.js internal isOpen state stays synced
-        btn?.click();
         iframeContainer.classList.remove('open');
       }
     };
@@ -237,21 +244,17 @@ export function openSupportKoriPopup(): void {
   ensureSupportKoriWidgetMounted();
   if (typeof document === 'undefined') return;
 
-  const btn = document.querySelector<HTMLElement>('.sk-widget-btn');
   const container = document.querySelector<HTMLElement>('.sk-widget-iframe-container');
-
   if (!container) return;
 
   if (!container.classList.contains('open')) {
-    if (btn) {
-      btn.click();
+    const frame = container.querySelector<HTMLIFrameElement>('iframe');
+    if (frame && !frame.getAttribute('src')) {
+      const lazySrc = frame.getAttribute('data-src') || container.dataset.iframeSrc;
+      if (lazySrc) frame.setAttribute('src', lazySrc);
     }
-    // Guarantee open class is applied even if external click handler had different state
     container.classList.add('open');
   } else {
-    if (btn) {
-      btn.click();
-    }
     container.classList.remove('open');
   }
 }

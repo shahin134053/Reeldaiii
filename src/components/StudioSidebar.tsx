@@ -1439,18 +1439,8 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
           <div>
             <div className="flex items-center justify-between gap-2">
               <label htmlFor="scene-setting" className="block text-xs font-medium text-[var(--ck-text-secondary)]">
-                {L(lang, '2D Environment (32+ Worlds)', '২ডি পরিবেশ (৩২+ জগৎ)')}
+                {L(lang, '2D Environment (32+ Worlds)', '২ডি পরিবেশ (৩২+ ডিফল্ট জগৎ)')}
               </label>
-              {onOpenAssetPicker && (
-                <button
-                  type="button"
-                  data-testid="sidebar-browse-2d-env-btn"
-                  onClick={() => onOpenAssetPicker('environments')}
-                  className="text-[11px] font-semibold text-[var(--ck-accent)] hover:underline whitespace-nowrap"
-                >
-                  {L(lang, 'Browse 27 Illustrated', '২৭টি ২ডি দৃশ্য দেখুন')}
-                </button>
-              )}
             </div>
             <select
               id="scene-setting"
@@ -1528,7 +1518,7 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
                     onClick={() => onOpenAssetPicker('characters')}
                     className="text-[11px] font-semibold text-[var(--ck-accent)] hover:underline whitespace-nowrap"
                   >
-                    {L(lang, 'Swap from 27 Characters', '২৭টি চরিত্র থেকে নিন')}
+                    {L(lang, 'Choose from 17 Characters', '১৭টি চরিত্র থেকে নিন')}
                   </button>
                 )}
               </div>
@@ -1556,7 +1546,7 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
                 <div className="mt-1.5 space-y-1.5 rounded-lg border border-[var(--ck-border)] bg-[var(--ck-inset)] p-2">
                   {activeScene.primaryCharacterAssetId && (() => {
                     const pChar = getCharacterAssetById(activeScene.primaryCharacterAssetId);
-                    const curMode = activeScene.characterRenderMode ?? 'rig-sync';
+                    const curMode = activeScene.characterRenderMode ?? 'illustrated-cutout';
                     return (
                       <div className="flex flex-wrap items-center justify-between gap-1.5">
                         <div className="flex min-w-0 items-center gap-2">
@@ -1564,7 +1554,7 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
                             <img
                               src={pChar.url}
                               alt={lang === 'bn' ? pChar.nameBn : pChar.nameEn}
-                              className="h-7 w-9 shrink-0 rounded object-cover border border-[var(--ck-border)]"
+                              className="h-8 w-8 shrink-0 rounded bg-[#141720] object-contain p-0.5 border border-[var(--ck-border)]"
                             />
                           )}
                           <span className="truncate text-[11px] font-semibold text-[var(--ck-text)]">
@@ -1628,7 +1618,7 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
                             <img
                               src={sChar.url}
                               alt={lang === 'bn' ? sChar.nameBn : sChar.nameEn}
-                              className="h-6 w-8 shrink-0 rounded object-cover border border-[var(--ck-border)]"
+                              className="h-7 w-7 shrink-0 rounded bg-[#141720] object-contain p-0.5 border border-[var(--ck-border)]"
                             />
                           )}
                           <span className="truncate text-[10px] text-[var(--ck-text-muted)]">

@@ -214,7 +214,7 @@ export function buildCustomCharacterProfile(draft: CustomCharacterDraft): Charac
     isCustom: true,
     sourceAssetId: draft.sourceAssetId,
     referenceSheetUrl: draft.referenceSheetUrl,
-    renderMode: draft.renderMode ?? 'rig-sync',
+    renderMode: draft.renderMode ?? (draft.sourceAssetId ? 'illustrated-cutout' : 'rig-sync'),
   };
 }
 
@@ -263,7 +263,8 @@ export function draftFromCharacterProfile(
     lockAcrossAllScenes,
     sourceAssetId: profile.sourceAssetId,
     referenceSheetUrl: profile.referenceSheetUrl,
-    renderMode: profile.renderMode ?? 'rig-sync',
+    renderMode:
+      profile.renderMode ?? (profile.sourceAssetId ? 'illustrated-cutout' : 'rig-sync'),
   };
 }
 
@@ -286,17 +287,24 @@ export function applyCustomCharacterToProject(
   const nextProfiles: CharacterProfile[] = [customProfile, ...filtered];
 
   const renderMode = customProfile.sourceAssetId
-    ? (customProfile.renderMode ?? 'rig-sync')
+    ? (customProfile.renderMode ?? 'illustrated-cutout')
     : 'rig-sync';
 
   const applyToScene = (scene: AnimationProject['scenes'][number]) => {
     const restIds = (scene.characterIds ?? []).filter(
       (id) => id !== customProfile.characterId
     );
+    const nextSecondary =
+      !scene.secondaryCharacterAssetId && scene.secondaryCharacter === customProfile.role
+        ? scene.primaryCharacter && scene.primaryCharacter !== customProfile.role
+          ? scene.primaryCharacter
+          : null
+        : scene.secondaryCharacter;
     return {
       ...scene,
       primaryCharacter: customProfile.role,
       primaryCharacterAssetId: customProfile.sourceAssetId,
+      secondaryCharacter: nextSecondary,
       characterRenderMode: renderMode,
       characterIds: [customProfile.characterId, ...restIds],
       presetSceneId: undefined,

@@ -72,12 +72,14 @@ export const StudioAssetPickerModal: React.FC<StudioAssetPickerModalProps> = ({
     contextMode === 'studio' ? 'scene' : 'all'
   );
 
+  const hasEnvironmentAssets = STUDIO_ENVIRONMENT_ASSETS.length > 0;
+
   useEffect(() => {
     if (isOpen) {
-      setActiveTab(initialTab);
+      setActiveTab(hasEnvironmentAssets ? initialTab : 'characters');
       setApplyScope(contextMode === 'studio' ? 'scene' : 'all');
     }
-  }, [isOpen, initialTab, contextMode]);
+  }, [isOpen, initialTab, contextMode, hasEnvironmentAssets]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -119,6 +121,7 @@ export const StudioAssetPickerModal: React.FC<StudioAssetPickerModalProps> = ({
 
   const effectiveCharScope: 'all' | 'scene' = contextMode === 'create' ? 'all' : applyScope;
   const effectiveEnvScope: 'all' | 'scene' = contextMode === 'create' ? 'all' : applyScope;
+  const totalChars = STUDIO_CHARACTER_ASSETS.length;
 
   return (
     <div
@@ -138,15 +141,15 @@ export const StudioAssetPickerModal: React.FC<StudioAssetPickerModalProps> = ({
             >
               {L(
                 lang,
-                '2D Animation Characters & Environments (54 Pack)',
-                '২ডি অ্যানিমেশন ক্যারেক্টার ও এনভায়রনমেন্ট লাইব্রেরি (৫৪টি)'
+                `Animated 2D Character Cast (${totalChars} Characters)`,
+                `অ্যানিমেটেড ২ডি ক্যারেক্টার লাইব্রেরি (${totalChars}টি চরিত্র)`
               )}
             </h2>
             <p className="mt-0.5 text-xs text-[var(--ck-text-muted)]">
               {L(
                 lang,
-                'Mix & match any of the 27 2D characters with any of the 27 illustrated backgrounds—use Animated Lip-Sync Rig or crisp 2D Artwork Cutout.',
-                '২৭টি ২ডি ক্যারেক্টার ও ২৭টি এনভায়রনমেন্ট যেকোনো গল্পে ব্যবহার করুন — অ্যানিমেটেড লিপ-সিঙ্ক রিগ অথবা ২ডি আর্টওয়ার্ক কাটআউট মোডে।'
+                `Select any of the ${totalChars} 2D animated characters to walk, stride, speak, and act inside all 32+ built-in cinema worlds.`,
+                `${totalChars}টি ২ডি চরিত্রের যেকোনোটি বেছে নিন — প্রতিটি চরিত্র গল্পের ৩২+ বিল্ট-ইন পরিবেশে হাঁটাচলা, নড়াচড়া ও সংলাপের সাথে প্রপারলি অ্যানিমেটেড হবে।`
               )}
             </p>
           </div>
@@ -164,7 +167,7 @@ export const StudioAssetPickerModal: React.FC<StudioAssetPickerModalProps> = ({
         {/* Navigation Tabs + Search + Category Filter Strip */}
         <div className="space-y-3 border-b border-[var(--ck-border-subtle)] bg-[var(--ck-surface-alt)] px-4 py-3 sm:px-6">
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-            {/* Tabs: Characters vs Environments */}
+            {/* Tabs: Characters (and Environments only if present) */}
             <div
               role="tablist"
               aria-label={L(lang, '2D Asset Library Tabs', '২ডি অ্যাসেট ট্যাব')}
@@ -183,30 +186,32 @@ export const StudioAssetPickerModal: React.FC<StudioAssetPickerModalProps> = ({
                 }`}
               >
                 <Users className="h-3.5 w-3.5" />
-                <span>{L(lang, '2D Characters (27)', '২ডি ক্যারেক্টার (২৭)')}</span>
+                <span>{L(lang, `2D Characters (${totalChars})`, `২ডি ক্যারেক্টার (${totalChars})`)}</span>
               </button>
-              <button
-                type="button"
-                role="tab"
-                data-testid="asset-tab-environments"
-                aria-selected={activeTab === 'environments'}
-                onClick={() => setActiveTab('environments')}
-                className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-colors whitespace-nowrap ${
-                  activeTab === 'environments'
-                    ? 'bg-[var(--ck-accent)] text-[var(--ck-accent-fg)]'
-                    : 'text-[var(--ck-text-muted)] hover:text-[var(--ck-text)]'
-                }`}
-              >
-                <ImageIcon className="h-3.5 w-3.5" />
-                <span>{L(lang, '2D Environments (27)', '২ডি এনভায়রনমেন্ট (২৭)')}</span>
-              </button>
+              {hasEnvironmentAssets && (
+                <button
+                  type="button"
+                  role="tab"
+                  data-testid="asset-tab-environments"
+                  aria-selected={activeTab === 'environments'}
+                  onClick={() => setActiveTab('environments')}
+                  className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-colors whitespace-nowrap ${
+                    activeTab === 'environments'
+                      ? 'bg-[var(--ck-accent)] text-[var(--ck-accent-fg)]'
+                      : 'text-[var(--ck-text-muted)] hover:text-[var(--ck-text)]'
+                  }`}
+                >
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  <span>{L(lang, `2D Environments (${STUDIO_ENVIRONMENT_ASSETS.length})`, `২ডি এনভায়রনমেন্ট`)}</span>
+                </button>
+              )}
             </div>
 
             {/* Search Input */}
             <div className="relative flex-1 sm:max-w-xs">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--ck-text-faint)]" />
               <label htmlFor="asset-picker-search" className="sr-only">
-                {L(lang, 'Search characters or environments', 'ক্যারেক্টার বা পরিবেশ খুঁজুন')}
+                {L(lang, 'Search 2D characters', 'ক্যারেক্টার খুঁজুন')}
               </label>
               <input
                 id="asset-picker-search"
@@ -216,8 +221,8 @@ export const StudioAssetPickerModal: React.FC<StudioAssetPickerModalProps> = ({
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={L(
                   lang,
-                  'Search doctor, tea, village, robot…',
-                  'খুঁজুন: ডাক্তার, চা, গ্রাম, রোবট…'
+                  'Search farmer, rickshaw, nurse, pilot, runner…',
+                  'খুঁজুন: কৃষক, রিকশা, নার্স, পাইলট, বিজ্ঞানী…'
                 )}
                 className="h-9 w-full rounded-lg border border-[var(--ck-border)] bg-[var(--ck-inset)] pl-8 pr-3 text-xs text-[var(--ck-text)] placeholder:text-[var(--ck-text-faint)] focus:border-[var(--ck-accent)] focus:outline-none"
               />
@@ -237,7 +242,7 @@ export const StudioAssetPickerModal: React.FC<StudioAssetPickerModalProps> = ({
                   : 'border-[var(--ck-border)] bg-[var(--ck-surface)] text-[var(--ck-text-muted)] hover:text-[var(--ck-text)]'
               }`}
             >
-              {L(lang, 'All Categories (27)', 'সবগুলো (২৭)')}
+              {L(lang, `All Characters (${totalChars})`, `সবগুলো (${totalChars})`)}
             </button>
             {STUDIO_ASSET_CATEGORIES.map((cat) => {
               const active = category === cat.id;
@@ -472,12 +477,12 @@ export const StudioAssetPickerModal: React.FC<StudioAssetPickerModalProps> = ({
                           : 'border-[var(--ck-border)] bg-[var(--ck-surface-alt)] hover:border-[var(--ck-accent)]/70'
                       }`}
                     >
-                      <div className="relative aspect-video w-full overflow-hidden bg-[#141720]">
+                      <div className="relative flex h-44 w-full items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_42%,#242A3A_0%,#141720_78%)] p-2">
                         <img
                           src={char.url}
                           alt={lang === 'bn' ? char.nameBn : char.nameEn}
                           loading="lazy"
-                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
                         />
                         {isActive && (
                           <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md bg-[var(--ck-accent)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--ck-accent-fg)] shadow">

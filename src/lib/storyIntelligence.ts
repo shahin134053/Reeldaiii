@@ -49,7 +49,7 @@ export interface CharacterProfile {
   isElder: boolean;
   accessories: CharacterAccessory[];
   isCustom?: boolean;
-  /** Optional link to one of the 27 uploaded 2D Character Sheet assets */
+  /** Optional link to one of the 17 animated 2D Character artwork assets */
   sourceAssetId?: string;
   /** Optional resolved URL of the uploaded 2D Character Sheet artwork */
   referenceSheetUrl?: string;

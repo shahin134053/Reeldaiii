@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Clapperboard,
   Download,
@@ -65,17 +65,9 @@ import { SubtitleMode, SubtitleStyle, getWatermarkImage } from './animation/rend
 import { REELDAIII_BRAND } from './lib/brandAssets';
 import { VideoPlayer, PreviewMode, ExportFormatChoice } from './components/VideoPlayer';
 import { StudioSidebar } from './components/StudioSidebar';
-import { ChapterGrid } from './components/ChapterGrid';
-import { TranscriptPanel } from './components/TranscriptPanel';
-import { ExportModal } from './components/ExportModal';
 import { CreateWorkspace, StoryIntakePayload } from './components/CreateWorkspace';
 import { ProcessingOverlay } from './components/ProcessingOverlay';
-import { RedesignModal } from './components/RedesignModal';
-import { CharacterDesignerModal } from './components/CharacterDesignerModal';
-import {
-  AssetPickerTab,
-  StudioAssetPickerModal,
-} from './components/StudioAssetPickerModal';
+import type { AssetPickerTab } from './components/StudioAssetPickerModal';
 import {
   StudioCharacterAsset,
   StudioEnvironmentAsset,
@@ -90,9 +82,36 @@ import {
 import { TimelineEditor } from './components/TimelineEditor';
 import { HomePage } from './components/HomePage';
 import { StudioColumn } from './components/StudioColumn';
-import { DeveloperPage } from './components/DeveloperPage';
-import { UserManualPage } from './components/UserManualPage';
 import { useLivePresence } from './lib/useLivePresence';
+
+const ChapterGrid = lazy(() =>
+  import('./components/ChapterGrid').then((m) => ({ default: m.ChapterGrid }))
+);
+const TranscriptPanel = lazy(() =>
+  import('./components/TranscriptPanel').then((m) => ({ default: m.TranscriptPanel }))
+);
+const ExportModal = lazy(() =>
+  import('./components/ExportModal').then((m) => ({ default: m.ExportModal }))
+);
+const RedesignModal = lazy(() =>
+  import('./components/RedesignModal').then((m) => ({ default: m.RedesignModal }))
+);
+const CharacterDesignerModal = lazy(() =>
+  import('./components/CharacterDesignerModal').then((m) => ({
+    default: m.CharacterDesignerModal,
+  }))
+);
+const StudioAssetPickerModal = lazy(() =>
+  import('./components/StudioAssetPickerModal').then((m) => ({
+    default: m.StudioAssetPickerModal,
+  }))
+);
+const DeveloperPage = lazy(() =>
+  import('./components/DeveloperPage').then((m) => ({ default: m.DeveloperPage }))
+);
+const UserManualPage = lazy(() =>
+  import('./components/UserManualPage').then((m) => ({ default: m.UserManualPage }))
+);
 import { HomeShowcaseStory, KEYBOARD_SHORTCUTS } from './lib/manualContent';
 import {
   StoryTemplateId,
@@ -239,7 +258,7 @@ export default function App() {
   const [customCharacterProfile, setCustomCharacterProfile] = useState<CharacterProfile | null>(null);
   const [customCharacterDraft, setCustomCharacterDraft] = useState<CustomCharacterDraft | null>(null);
   const [createCharacterAssetId, setCreateCharacterAssetId] = useState<string | null>(null);
-  const [createCharacterMode, setCreateCharacterMode] = useState<CharacterRenderMode>('rig-sync');
+  const [createCharacterMode, setCreateCharacterMode] = useState<CharacterRenderMode>('illustrated-cutout');
   const [createEnvironmentAssetId, setCreateEnvironmentAssetId] = useState<string | null>(null);
   const [createAutoIllustrated, setCreateAutoIllustrated] = useState<boolean>(false);
   const [assetPickerState, setAssetPickerState] = useState<{
@@ -1164,7 +1183,7 @@ export default function App() {
       setCustomCharacterProfile(profile);
       setCustomCharacterDraft(draft);
       setCreateCharacterAssetId(draft.sourceAssetId ?? null);
-      setCreateCharacterMode(draft.renderMode ?? 'rig-sync');
+      setCreateCharacterMode(draft.renderMode ?? 'illustrated-cutout');
       if (draft.referenceSheetUrl || draft.sourceAssetId) {
         void preloadStudioAssetsForScenes([], [profile]);
       }
@@ -2375,30 +2394,34 @@ export default function App() {
               {workspacePhase !== 'processing' &&
                 hasLoadedProject &&
                 studioSection === 'storyboard' && (
-                  <ChapterGrid
-                    lang={lang}
-                    project={project}
-                    activeSceneId={activeScene.id}
-                    thumbnailRatio={previewMode === '9:16' ? '9:16' : '16:9'}
-                    portraitZoom={portraitZoom}
-                    onSelectChapter={handleSelectChapter}
-                  />
+                  <Suspense fallback={null}>
+                    <ChapterGrid
+                      lang={lang}
+                      project={project}
+                      activeSceneId={activeScene.id}
+                      thumbnailRatio={previewMode === '9:16' ? '9:16' : '16:9'}
+                      portraitZoom={portraitZoom}
+                      onSelectChapter={handleSelectChapter}
+                    />
+                  </Suspense>
                 )}
 
               {/* Studio Section: Synchronized Script & SRT Panel */}
               {workspacePhase !== 'processing' &&
                 hasLoadedProject &&
                 studioSection === 'script' && (
-                  <TranscriptPanel
-                    lang={lang}
-                    project={project}
-                    isLoading={isLoadingCues && project.isDemo}
-                    currentTime={currentTime}
-                    onSeekToCue={(startTime) => {
-                      handleSeekTo(startTime, true);
-                      setStudioSection('preview');
-                    }}
-                  />
+                  <Suspense fallback={null}>
+                    <TranscriptPanel
+                      lang={lang}
+                      project={project}
+                      isLoading={isLoadingCues && project.isDemo}
+                      currentTime={currentTime}
+                      onSeekToCue={(startTime) => {
+                        handleSeekTo(startTime, true);
+                        setStudioSection('preview');
+                      }}
+                    />
+                  </Suspense>
                 )}
 
               {/* Studio Section: Story Intelligence, Cast & Automated QC */}
@@ -2615,21 +2638,25 @@ export default function App() {
 
         {/* PAGE 3: Comprehensive Bilingual User Manual */}
         {activePage === 'manual' && (
-          <UserManualPage
-            lang={lang}
-            onEnterStudio={handleEnterStudio}
-            onLaunchDemo={handleLoadDemo}
-            onGoHome={() => handleNavigatePage('home')}
-          />
+          <Suspense fallback={null}>
+            <UserManualPage
+              lang={lang}
+              onEnterStudio={handleEnterStudio}
+              onLaunchDemo={handleLoadDemo}
+              onGoHome={() => handleNavigatePage('home')}
+            />
+          </Suspense>
         )}
 
         {/* PAGE 4: Dedicated Developer Page */}
         {activePage === 'developer' && (
-          <DeveloperPage
-            lang={lang}
-            onEnterStudio={handleEnterStudio}
-            onGoHome={() => handleNavigatePage('home')}
-          />
+          <Suspense fallback={null}>
+            <DeveloperPage
+              lang={lang}
+              onEnterStudio={handleEnterStudio}
+              onGoHome={() => handleNavigatePage('home')}
+            />
+          </Suspense>
         )}
       </main>
 
@@ -2689,78 +2716,94 @@ export default function App() {
         </div>
       </footer>
 
-      <ExportModal
-        lang={lang}
-        isOpen={isExportOpen}
-        onClose={() => setIsExportOpen(false)}
-        project={project}
-        activeScene={activeScene}
-        defaultSubtitleMode={subtitleMode}
-        subtitleStyle={subtitleStyle}
-        portraitZoom={portraitZoom}
-        initialFormat={exportFormat}
-      />
+      {isExportOpen && (
+        <Suspense fallback={null}>
+          <ExportModal
+            lang={lang}
+            isOpen={isExportOpen}
+            onClose={() => setIsExportOpen(false)}
+            project={project}
+            activeScene={activeScene}
+            defaultSubtitleMode={subtitleMode}
+            subtitleStyle={subtitleStyle}
+            portraitZoom={portraitZoom}
+            initialFormat={exportFormat}
+          />
+        </Suspense>
+      )}
 
-      <RedesignModal
-        lang={lang}
-        isOpen={isRedesignOpen}
-        onClose={() => setIsRedesignOpen(false)}
-        project={project}
-        history={designHistory}
-        onFullRemix={handleFullRemix}
-        onUpdateDesign={handleUpdateDesignConfig}
-        onUpdateVisualStyle={handleUpdateProjectStyle}
-        onApplyStoryTemplate={handleApplyStoryTemplate}
-        onUndoLast={handleUndoDesign}
-        onRestoreSnapshot={handleRestoreSnapshot}
-      />
+      {isRedesignOpen && (
+        <Suspense fallback={null}>
+          <RedesignModal
+            lang={lang}
+            isOpen={isRedesignOpen}
+            onClose={() => setIsRedesignOpen(false)}
+            project={project}
+            history={designHistory}
+            onFullRemix={handleFullRemix}
+            onUpdateDesign={handleUpdateDesignConfig}
+            onUpdateVisualStyle={handleUpdateProjectStyle}
+            onApplyStoryTemplate={handleApplyStoryTemplate}
+            onUndoLast={handleUndoDesign}
+            onRestoreSnapshot={handleRestoreSnapshot}
+          />
+        </Suspense>
+      )}
 
-      <CharacterDesignerModal
-        lang={lang}
-        isOpen={isCharacterDesignerOpen}
-        onClose={() => setIsCharacterDesignerOpen(false)}
-        initialDraft={customCharacterDraft}
-        hasActiveProject={hasLoadedProject && studioSection !== 'create'}
-        onApplyCharacter={handleApplyCustomCharacter}
-      />
+      {isCharacterDesignerOpen && (
+        <Suspense fallback={null}>
+          <CharacterDesignerModal
+            lang={lang}
+            isOpen={isCharacterDesignerOpen}
+            onClose={() => setIsCharacterDesignerOpen(false)}
+            initialDraft={customCharacterDraft}
+            hasActiveProject={hasLoadedProject && studioSection !== 'create'}
+            onApplyCharacter={handleApplyCustomCharacter}
+          />
+        </Suspense>
+      )}
 
-      <StudioAssetPickerModal
-        lang={lang}
-        isOpen={assetPickerState.isOpen}
-        onClose={() => setAssetPickerState((prev) => ({ ...prev, isOpen: false }))}
-        initialTab={assetPickerState.tab}
-        contextMode={assetPickerState.contextMode}
-        activeSceneNumber={activeScene.chapterNumber}
-        selectedCharacterId={
-          assetPickerState.contextMode === 'create'
-            ? createCharacterAssetId
-            : activeScene.primaryCharacterAssetId ?? null
-        }
-        selectedSecondaryCharacterId={
-          assetPickerState.contextMode === 'studio'
-            ? activeScene.secondaryCharacterAssetId ?? null
-            : null
-        }
-        selectedEnvironmentId={
-          assetPickerState.contextMode === 'create'
-            ? createEnvironmentAssetId
-            : activeScene.customBackgroundAssetId ?? null
-        }
-        renderMode={
-          assetPickerState.contextMode === 'create'
-            ? createCharacterMode
-            : activeScene.characterRenderMode ?? 'rig-sync'
-        }
-        onChangeRenderMode={(mode) => {
-          if (assetPickerState.contextMode === 'create') {
-            handleChangeCreateCharacterMode(mode);
-          } else {
-            handleToggleSceneCharacterMode(mode);
-          }
-        }}
-        onSelectCharacter={handleSelectPickerCharacter}
-        onSelectEnvironment={handleSelectPickerEnvironment}
-      />
+      {assetPickerState.isOpen && (
+        <Suspense fallback={null}>
+          <StudioAssetPickerModal
+            lang={lang}
+            isOpen={assetPickerState.isOpen}
+            onClose={() => setAssetPickerState((prev) => ({ ...prev, isOpen: false }))}
+            initialTab={assetPickerState.tab}
+            contextMode={assetPickerState.contextMode}
+            activeSceneNumber={activeScene.chapterNumber}
+            selectedCharacterId={
+              assetPickerState.contextMode === 'create'
+                ? createCharacterAssetId
+                : activeScene.primaryCharacterAssetId ?? null
+            }
+            selectedSecondaryCharacterId={
+              assetPickerState.contextMode === 'studio'
+                ? activeScene.secondaryCharacterAssetId ?? null
+                : null
+            }
+            selectedEnvironmentId={
+              assetPickerState.contextMode === 'create'
+                ? createEnvironmentAssetId
+                : activeScene.customBackgroundAssetId ?? null
+            }
+            renderMode={
+              assetPickerState.contextMode === 'create'
+                ? createCharacterMode
+                : activeScene.characterRenderMode ?? 'illustrated-cutout'
+            }
+            onChangeRenderMode={(mode) => {
+              if (assetPickerState.contextMode === 'create') {
+                handleChangeCreateCharacterMode(mode);
+              } else {
+                handleToggleSceneCharacterMode(mode);
+              }
+            }}
+            onSelectCharacter={handleSelectPickerCharacter}
+            onSelectEnvironment={handleSelectPickerEnvironment}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

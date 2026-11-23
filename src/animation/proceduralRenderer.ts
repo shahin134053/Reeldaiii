@@ -216,7 +216,7 @@ export function renderProceduralScene(
   const secondaryRole: CharacterRole | null = scene.secondaryCharacter ?? null;
   const emotion: EmotionTone = scene.emotion ?? 'calm';
   const rimLight = getRimLight(scene.timeOfDay);
-  const isSpeaking = speechEnergy > 0.12;
+  const isSpeaking = speechEnergy > 0.06;
 
   const isExpanded =
     scene.setting === 'space-cosmos' ||
@@ -578,30 +578,37 @@ export function renderProceduralScene(
           characterProfiles?.some((p) => p.isCustom) ||
           primaryRole !== 'father'
       );
-      const rickshawScale = unitScale * 0.86;
-      const halfRickshawW = Math.round(148 * rickshawScale);
-      const minRx = safe.safeLeft + halfRickshawW + (isVertical ? 6 : 28);
-      const maxRx = safe.safeRight - halfRickshawW - (isVertical ? 6 : 28);
-      const rx = hasCustomCastOverride
-        ? safe.clampX(width * 0.28, halfRickshawW)
-        : minRx >= maxRx
-          ? safe.centerX
-          : safe.clampX(lerp(minRx, maxRx, progress), halfRickshawW);
-      drawRickshaw(ctx, {
-        x: rx,
-        y: hasCustomCastOverride ? subjectY - 14 : subjectY,
-        scale: hasCustomCastOverride ? rickshawScale * 0.84 : rickshawScale,
-        facing: 1,
-        wheelAngle: sceneTime * 4.2,
-        pedalPhase: sceneTime * 4.2,
-        hoodUp: true,
-        hasGamchhaOnSeat: true,
-        hasPolytheneOnSeat: true,
-        isWet,
-        showFather: !hasCustomCastOverride,
-        fatherState: isWet ? 'drenched' : 'pedaling',
-        showRafiSeated: !hasCustomCastOverride,
-      });
+      const hasCustomRickshawAsset =
+        scene.primaryCharacterAssetId === 'char-rickshaw-cyclist' ||
+        scene.primaryCharacterAssetId === 'char-rickshaw-puller' ||
+        scene.secondaryCharacterAssetId === 'char-rickshaw-cyclist' ||
+        scene.secondaryCharacterAssetId === 'char-rickshaw-puller';
+      if (!hasCustomRickshawAsset) {
+        const rickshawScale = unitScale * 0.86;
+        const halfRickshawW = Math.round(148 * rickshawScale);
+        const minRx = safe.safeLeft + halfRickshawW + (isVertical ? 6 : 28);
+        const maxRx = safe.safeRight - halfRickshawW - (isVertical ? 6 : 28);
+        const rx = hasCustomCastOverride
+          ? safe.clampX(width * 0.28, halfRickshawW)
+          : minRx >= maxRx
+            ? safe.centerX
+            : safe.clampX(lerp(minRx, maxRx, progress), halfRickshawW);
+        drawRickshaw(ctx, {
+          x: rx,
+          y: hasCustomCastOverride ? subjectY - 14 : subjectY,
+          scale: hasCustomCastOverride ? rickshawScale * 0.84 : rickshawScale,
+          facing: 1,
+          wheelAngle: sceneTime * 4.2,
+          pedalPhase: sceneTime * 4.2,
+          hoodUp: true,
+          hasGamchhaOnSeat: true,
+          hasPolytheneOnSeat: true,
+          isWet,
+          showFather: !hasCustomCastOverride,
+          fatherState: isWet ? 'drenched' : 'pedaling',
+          showRafiSeated: !hasCustomCastOverride,
+        });
+      }
       if (hasCustomCastOverride) {
         drawSceneHumans(ctx, scene, sceneTime, globalTime, width, height, subjectY, unitScale, progress, primaryRole, secondaryRole, emotion, speechEnergy, isSpeaking, rimLight, isVertical, safe, characterProfiles, viseme);
       }
@@ -688,9 +695,12 @@ function drawSceneHumans(
   const enterSpring = Math.min(1, springValue(sceneTime, { stiffness: 135, damping: 18 }));
   const enterOffsetY = (1 - enterSpring) * 14;
   const pProf = resolveSceneActorProfile(characterProfiles, primaryRole, scene, 'primary');
-  const sProf = (secondaryRole || scene.secondaryCharacterAssetId)
+  const hasSecondary = Boolean(secondaryRole || scene.secondaryCharacterAssetId);
+  const sProf = hasSecondary
     ? resolveSceneActorProfile(characterProfiles, secondaryRole ?? 'friend', scene, 'secondary')
     : undefined;
+  const soloMaxOffsetX = isVertical ? 36 : 76;
+  const duoMaxOffsetX = isVertical ? 14 : 24;
 
   // Close-up expressive storytelling portrait (shows realistic human face, blinking, lip-sync & hand gestures up close!)
   if (scene.cameraShot === 'close-up-portrait' && (scene.action === 'speaking-narrator' || scene.action === 'quote-card')) {
@@ -712,6 +722,8 @@ function drawSceneHumans(
       prop: scene.prop ?? 'none',
       rimLightColor: rimLight,
       profile: pProf,
+      maxOffsetX: 14,
+      lockFacing: true,
     });
     return;
   }
@@ -737,14 +749,16 @@ function drawSceneHumans(
       prop: scene.prop ?? 'none',
       rimLightColor: rimLight,
       profile: pProf,
+      maxOffsetX: 28,
+      lockFacing: true,
     });
-    if (secondaryRole) {
+    if (hasSecondary) {
       drawLifelikeHuman(ctx, {
         x: safe.clampX(walkX - walkDir * (isVertical ? 68 : 96), 44),
         y: subjectY - 6 + enterOffsetY,
         scale: unitScale * 0.94,
         facing: walkDir,
-        role: secondaryRole,
+        role: secondaryRole ?? 'friend',
         emotion: 'calm',
         pose: 'walking',
         time: globalTime + 0.4,
@@ -753,6 +767,8 @@ function drawSceneHumans(
         isWet,
         rimLightColor: rimLight,
         profile: sProf,
+        maxOffsetX: 20,
+        lockFacing: true,
       });
     }
     return;
@@ -776,14 +792,16 @@ function drawSceneHumans(
       prop: scene.prop ?? 'umbrella',
       rimLightColor: rimLight,
       profile: pProf,
+      maxOffsetX: hasSecondary ? duoMaxOffsetX : soloMaxOffsetX,
+      lockFacing: hasSecondary,
     });
-    if (secondaryRole) {
+    if (hasSecondary) {
       drawLifelikeHuman(ctx, {
         x: safe.clampX(width * 0.68, 52),
         y: subjectY + 2 + enterOffsetY,
         scale: unitScale * 0.98,
         facing: -1,
-        role: secondaryRole,
+        role: secondaryRole ?? 'friend',
         emotion: 'emotional',
         pose: 'standing-speak',
         time: globalTime,
@@ -793,6 +811,8 @@ function drawSceneHumans(
         prop: 'money',
         rimLightColor: rimLight,
         profile: sProf,
+        maxOffsetX: duoMaxOffsetX,
+        lockFacing: true,
       });
     }
     return;
@@ -818,6 +838,8 @@ function drawSceneHumans(
       prop: scene.prop ?? 'none',
       rimLightColor: rimLight,
       profile: pProf,
+      maxOffsetX: duoMaxOffsetX,
+      lockFacing: true,
     });
     drawLifelikeHuman(ctx, {
       x: rightX,
@@ -836,6 +858,8 @@ function drawSceneHumans(
       profile: secondaryRole
         ? sProf
         : resolveSceneActorProfile(characterProfiles, 'friend', scene, 'secondary'),
+      maxOffsetX: duoMaxOffsetX,
+      lockFacing: true,
     });
     return;
   }
@@ -849,7 +873,7 @@ function drawSceneHumans(
         : 'standing-speak';
 
   drawLifelikeHuman(ctx, {
-    x: secondaryRole ? safe.clampX(width * 0.38, 50) : safe.centerX,
+    x: hasSecondary ? safe.clampX(width * 0.38, 50) : safe.centerX,
     y: subjectY + enterOffsetY,
     scale: unitScale * (isVertical ? 1.04 : 1.12),
     facing: 1,
@@ -864,15 +888,17 @@ function drawSceneHumans(
     prop: scene.prop ?? 'none',
     rimLightColor: rimLight,
     profile: pProf,
+    maxOffsetX: hasSecondary ? duoMaxOffsetX : soloMaxOffsetX,
+    lockFacing: hasSecondary,
   });
 
-  if (secondaryRole) {
+  if (hasSecondary) {
     drawLifelikeHuman(ctx, {
       x: safe.clampX(width * 0.64, 50),
       y: subjectY + 4 + enterOffsetY,
       scale: unitScale * (isVertical ? 0.96 : 1.02),
       facing: -1,
-      role: secondaryRole,
+      role: secondaryRole ?? 'friend',
       emotion: emotion === 'happy' ? 'happy' : 'calm',
       pose: pose === 'celebrating' ? 'celebrating' : 'listening',
       time: globalTime + 0.6,
@@ -881,6 +907,8 @@ function drawSceneHumans(
       isWet,
       rimLightColor: rimLight,
       profile: sProf,
+      maxOffsetX: duoMaxOffsetX,
+      lockFacing: true,
     });
   }
 }

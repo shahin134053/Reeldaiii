@@ -122,8 +122,14 @@ export const CharacterDesignerModal: React.FC<CharacterDesignerModalProps> = ({
 
     let rafId = 0;
     const startMs = performance.now();
+    let lastDrawMs = -Infinity;
 
     const drawFrame = (now: number) => {
+      if (now - lastDrawMs < 32) {
+        rafId = requestAnimationFrame(drawFrame);
+        return;
+      }
+      lastDrawMs = now;
       const t = (now - startMs) / 1000;
       const w = canvas.width;
       const h = canvas.height;
@@ -167,6 +173,8 @@ export const CharacterDesignerModal: React.FC<CharacterDesignerModalProps> = ({
         isSpeaking: previewSpeaking,
         rimLightColor: 'rgba(255, 214, 148, 0.45)',
         profile: liveProfile,
+        maxOffsetX: 26,
+        lockFacing: true,
       });
 
       rafId = requestAnimationFrame(drawFrame);
@@ -389,11 +397,15 @@ export const CharacterDesignerModal: React.FC<CharacterDesignerModalProps> = ({
 
           {/* Right: Customization Controls */}
           <div className="cinema-scroll space-y-5 p-5 lg:col-span-7 lg:max-h-[68vh] lg:overflow-y-auto">
-            {/* Quick-Load from 27 Illustrated Character Sheets */}
+            {/* Quick-Load from 17 Animated 2D Characters */}
             <div className="space-y-2 rounded-xl border border-[var(--ck-border)] bg-[var(--ck-surface-alt)] p-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-[var(--ck-text)]">
-                  {L(lang, 'Load from 27 Illustrated Character Sheets', '২৭টি ২ডি ক্যারেক্টার শিট থেকে লোড করুন')}
+                  {L(
+                    lang,
+                    `Load from ${STUDIO_CHARACTER_ASSETS.length} Animated 2D Characters`,
+                    `${STUDIO_CHARACTER_ASSETS.length}টি অ্যানিমেটেড ২ডি ক্যারেক্টার থেকে লোড করুন`
+                  )}
                 </span>
                 <span className="text-[10px] text-[var(--ck-text-muted)]">
                   {L(lang, 'Scroll horizontally →', 'ডানে স্ক্রল করুন →')}
@@ -429,12 +441,12 @@ export const CharacterDesignerModal: React.FC<CharacterDesignerModalProps> = ({
                           : 'border-[var(--ck-border)] bg-[var(--ck-surface)] hover:border-[var(--ck-accent)]/70'
                       }`}
                     >
-                      <div className="h-14 w-full overflow-hidden bg-[var(--ck-inset)]">
+                      <div className="flex h-20 w-full items-center justify-center overflow-hidden bg-[#141720] p-1">
                         <img
                           src={asset.url}
                           alt={lang === 'bn' ? asset.nameBn : asset.nameEn}
                           loading="lazy"
-                          className="h-full w-full object-cover object-left-top transition-transform group-hover:scale-105"
+                          className="h-full w-full object-contain transition-transform group-hover:scale-105"
                         />
                       </div>
                       <span className="truncate px-1.5 py-1 text-[10px] font-medium text-[var(--ck-text)]">

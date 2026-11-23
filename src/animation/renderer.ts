@@ -218,11 +218,30 @@ export function renderProjectFrame(
     outputWidth && outputHeight && (outputWidth !== width || outputHeight !== height)
   );
 
+  const designCfg = project.designConfig ?? DEFAULT_DESIGN_CONFIG;
+  const subCfg = project.subtitleConfig ?? DEFAULT_SUBTITLE_CONFIG;
+  const brandCfg = project.brandingConfig ?? DEFAULT_BRANDING_CONFIG;
+  const palette = COLOR_PALETTES[designCfg.colorPalette] ?? COLOR_PALETTES['heritage-gold'];
+  const layoutMode: LayoutMode = isThumbnail ? 'full-bleed' : designCfg.layoutMode;
+
+  // Render world into base-HD offscreen composite when upscaling 4K exports OR framing into editorial-frame / split-focus
+  const needsComposite =
+    (fastHighResComposite && hasOutputScale) ||
+    layoutMode === 'editorial-frame' ||
+    layoutMode === 'split-focus';
+  const compositeCanvas = needsComposite ? getCompositeCanvas(width, height) : null;
+  const worldCtx = compositeCanvas
+    ? compositeCanvas.getContext('2d', { alpha: false }) ?? ctx
+    : ctx;
+  const usingComposite = Boolean(compositeCanvas && worldCtx !== ctx);
+
   ctx.save();
   if (hasOutputScale && outputWidth && outputHeight) {
-    ctx.clearRect(0, 0, outputWidth, outputHeight);
+    if (!usingComposite || layoutMode !== 'full-bleed') {
+      ctx.clearRect(0, 0, outputWidth, outputHeight);
+    }
     ctx.scale(outputWidth / width, outputHeight / height);
-  } else {
+  } else if (!usingComposite || layoutMode !== 'full-bleed') {
     ctx.clearRect(0, 0, width, height);
   }
 
@@ -244,23 +263,6 @@ export function renderProjectFrame(
     time,
     speechEnergy,
   });
-
-  const designCfg = project.designConfig ?? DEFAULT_DESIGN_CONFIG;
-  const subCfg = project.subtitleConfig ?? DEFAULT_SUBTITLE_CONFIG;
-  const brandCfg = project.brandingConfig ?? DEFAULT_BRANDING_CONFIG;
-  const palette = COLOR_PALETTES[designCfg.colorPalette] ?? COLOR_PALETTES['heritage-gold'];
-  const layoutMode: LayoutMode = isThumbnail ? 'full-bleed' : designCfg.layoutMode;
-
-  // Render world into base-HD offscreen composite when upscaling 4K exports OR framing into editorial-frame / split-focus
-  const needsComposite =
-    (fastHighResComposite && hasOutputScale) ||
-    layoutMode === 'editorial-frame' ||
-    layoutMode === 'split-focus';
-  const compositeCanvas = needsComposite ? getCompositeCanvas(width, height) : null;
-  const worldCtx = compositeCanvas
-    ? compositeCanvas.getContext('2d', { alpha: false, willReadFrequently: true }) ?? ctx
-    : ctx;
-  const usingComposite = Boolean(compositeCanvas && worldCtx !== ctx);
 
   if (usingComposite) {
     worldCtx.clearRect(0, 0, width, height);
@@ -557,7 +559,7 @@ export function renderProjectFrame(
     }
   } else if (usingComposite && compositeCanvas) {
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    ctx.imageSmoothingQuality = 'medium';
     ctx.drawImage(compositeCanvas, 0, 0, width, height);
   }
 

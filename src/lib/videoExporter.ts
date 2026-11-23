@@ -22,6 +22,7 @@ export interface ExportVideoOptions {
   containerFormat?: ExportContainerFormat;
   portraitZoom?: number;
   fps?: number;
+  targetMaxWallMs?: number;
   onProgress: (progress01: number, currentSeconds: number, detail?: string) => void;
   signal: AbortSignal;
 }
@@ -35,6 +36,44 @@ export interface ExportVideoResult {
   height: number;
   codecLabel: string;
   engine: 'webcodecs' | 'mediarecorder';
+}
+
+export interface ExportFrameSchedule {
+  fps: number;
+  totalFrames: number;
+  maxFramesBudget: number;
+  estimatedRenderSeconds: number;
+}
+
+/**
+ * Computes an adaptive frame rate so any video duration and resolution
+ * (720p, 1080p, or 4K UHD) renders cleanly within 1 minute max.
+ * Short videos (up to 60s even at 4K) stay at crisp 24fps.
+ */
+export function computeExportFrameSchedule(
+  durationSeconds: number,
+  quality: ExportQuality = '1080p'
+): ExportFrameSchedule {
+  const safeDur = Math.max(0.5, durationSeconds);
+  const maxFramesBudget =
+    quality === '4k' ? 1440 : quality === '1080p' ? 2400 : 3200;
+
+  const ideal24Frames = Math.ceil(safeDur * 24);
+  const fps =
+    ideal24Frames <= maxFramesBudget
+      ? 24
+      : Math.max(2, Math.min(24, Math.floor(maxFramesBudget / safeDur)));
+
+  const totalFrames = Math.min(maxFramesBudget, Math.max(12, Math.ceil(safeDur * fps)));
+  const msPerFrame = quality === '4k' ? 30 : quality === '1080p' ? 15 : 9;
+  const estimatedRenderSeconds = Math.max(2, Math.round((totalFrames * msPerFrame) / 1000));
+
+  return {
+    fps,
+    totalFrames,
+    maxFramesBudget,
+    estimatedRenderSeconds,
+  };
 }
 
 interface VideoCodecCandidate {
@@ -81,9 +120,19 @@ function getVideoCodecCandidates(
   ];
 }
 
+type ResolvedVideoConfig = {
+  config: VideoEncoderConfig;
+  candidate: VideoCodecCandidate;
+  width: number;
+  height: number;
+};
+
+const resolvedVideoConfigCache = new Map<string, ResolvedVideoConfig | null>();
+
 /**
  * Probes WebCodecs VideoEncoder support across resolution fallback tiers so 4K UHD
  * works cleanly when supported and degrades gracefully if a device GPU caps portrait height.
+ * Results are cached per (format, resolution, bitrate) so repeat/dual-ratio exports skip probing.
  */
 async function resolveSupportedVideoConfig(
   format: ExportContainerFormat,
@@ -91,14 +140,19 @@ async function resolveSupportedVideoConfig(
   requestedHeight: number,
   bitrate: number,
   fps: number
-): Promise<{
-  config: VideoEncoderConfig;
-  candidate: VideoCodecCandidate;
-  width: number;
-  height: number;
-} | null> {
+): Promise<ResolvedVideoConfig | null> {
   if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') {
     return null;
+  }
+
+  const cacheKey = `${format}:${requestedWidth}x${requestedHeight}:${bitrate}`;
+  if (resolvedVideoConfigCache.has(cacheKey)) {
+    const cached = resolvedVideoConfigCache.get(cacheKey);
+    if (!cached) return null;
+    return {
+      ...cached,
+      config: { ...cached.config, framerate: fps },
+    };
   }
 
   const isVertical = requestedHeight > requestedWidth;
@@ -126,12 +180,13 @@ async function resolveSupportedVideoConfig(
     const candidates = getVideoCodecCandidates(format, isUltraHd);
 
     for (const candidate of candidates) {
-      for (const accel of ['no-preference', 'prefer-software'] as const) {
+      for (const accel of ['prefer-hardware', 'no-preference', 'prefer-software'] as const) {
         const config: VideoEncoderConfig = {
           codec: candidate.webCodecs,
           width,
           height,
           bitrate: tier.br,
+          bitrateMode: 'variable',
           framerate: fps,
           latencyMode: 'realtime',
           hardwareAcceleration: accel,
@@ -140,12 +195,14 @@ async function resolveSupportedVideoConfig(
         try {
           const support = await VideoEncoder.isConfigSupported(config);
           if (support.supported) {
-            return {
+            const resolved: ResolvedVideoConfig = {
               config: support.config ?? config,
               candidate,
               width,
               height,
             };
+            resolvedVideoConfigCache.set(cacheKey, resolved);
+            return resolved;
           }
         } catch {
           // Try next codec profile
@@ -154,6 +211,7 @@ async function resolveSupportedVideoConfig(
     }
   }
 
+  resolvedVideoConfigCache.set(cacheKey, null);
   return null;
 }
 
@@ -164,8 +222,82 @@ interface DecodedAudioSlice {
   frameCount: number;
 }
 
+const decodedAudioCache = new Map<string, AudioBuffer>();
+const decodedAudioInFlight = new Map<string, Promise<AudioBuffer | null>>();
+
 /**
- * Decodes and slices the exact [startTime, endTime] voiceover segment offline (no audio.play() required).
+ * Warms and caches the decoded AudioBuffer in the background (e.g. when ExportModal opens)
+ * with in-flight deduplication so clicking Export starts rendering almost instantaneously.
+ */
+export function preloadDecodedAudio(audioUrl: string): Promise<AudioBuffer | null> {
+  if (typeof window === 'undefined' || !audioUrl) return Promise.resolve(null);
+  const cached = decodedAudioCache.get(audioUrl);
+  if (cached) return Promise.resolve(cached);
+  const pending = decodedAudioInFlight.get(audioUrl);
+  if (pending) return pending;
+
+  const task = (async (): Promise<AudioBuffer | null> => {
+    try {
+      const res = await fetch(audioUrl);
+      if (!res.ok) return null;
+      const rawBuf = await res.arrayBuffer();
+      if (rawBuf.byteLength === 0) return null;
+
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return null;
+
+      const decodeCtx = new AudioCtx();
+      try {
+        const decoded = await decodeCtx.decodeAudioData(rawBuf.slice(0));
+        if (decodedAudioCache.size >= 2) {
+          const oldest = decodedAudioCache.keys().next().value;
+          if (oldest) decodedAudioCache.delete(oldest);
+        }
+        decodedAudioCache.set(audioUrl, decoded);
+        return decoded;
+      } finally {
+        decodeCtx.close().catch(() => {});
+      }
+    } catch {
+      return null;
+    } finally {
+      decodedAudioInFlight.delete(audioUrl);
+    }
+  })();
+
+  decodedAudioInFlight.set(audioUrl, task);
+  return task;
+}
+
+function resampleChannelLinear(
+  src: Float32Array,
+  srcStart: number,
+  srcLength: number,
+  srcRate: number,
+  dstLength: number,
+  dstRate: number
+): Float32Array {
+  const out = new Float32Array(dstLength);
+  if (srcLength <= 1 || src.length === 0) return out;
+  const ratio = srcRate / dstRate;
+  const maxIdx = src.length - 1;
+  for (let i = 0; i < dstLength; i++) {
+    const pos = srcStart + i * ratio;
+    const idx = Math.floor(pos);
+    if (idx < 0 || idx > maxIdx) continue;
+    const frac = pos - idx;
+    const s0 = src[idx];
+    const s1 = idx + 1 <= maxIdx ? src[idx + 1] : s0;
+    out[i] = s0 + (s1 - s0) * frac;
+  }
+  return out;
+}
+
+/**
+ * Decodes and slices the exact [startTime, endTime] voiceover segment offline
+ * with pure-JS zero-stall 48kHz resampling and decoded AudioBuffer caching across multi-ratio exports.
  */
 async function decodeAudioSliceOffline(
   audioUrl: string,
@@ -173,60 +305,71 @@ async function decodeAudioSliceOffline(
   endTime: number
 ): Promise<DecodedAudioSlice | null> {
   try {
-    const res = await fetch(audioUrl);
-    if (!res.ok) return null;
-    const rawBuf = await res.arrayBuffer();
-    if (rawBuf.byteLength === 0) return null;
+    const decoded = await preloadDecodedAudio(audioUrl);
+    if (!decoded) return null;
 
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return null;
+    const targetSampleRate = 48000;
+    const targetChannels = Math.min(2, Math.max(1, decoded.numberOfChannels));
+    const clipDuration = Math.max(0.25, endTime - startTime);
+    const totalOutFrames = Math.ceil(clipDuration * targetSampleRate);
+    const srcStart = Math.max(0, Math.floor(startTime * decoded.sampleRate));
+    const srcLength = Math.max(1, Math.ceil(clipDuration * decoded.sampleRate));
 
-    const decodeCtx = new AudioCtx();
-    try {
-      const decoded = await decodeCtx.decodeAudioData(rawBuf.slice(0));
-      const targetSampleRate = 48000;
-      const targetChannels = Math.min(2, Math.max(1, decoded.numberOfChannels));
-      const clipDuration = Math.max(0.25, endTime - startTime);
-      const totalOutFrames = Math.ceil(clipDuration * targetSampleRate);
-
-      // Resample + slice cleanly using OfflineAudioContext so sample rate is always 48kHz (required by Opus & AAC)
-      const offline = new OfflineAudioContext(targetChannels, totalOutFrames, targetSampleRate);
-      const src = offline.createBufferSource();
-      src.buffer = decoded;
-      src.connect(offline.destination);
-      src.start(0, Math.max(0, startTime), clipDuration);
-      const rendered = await offline.startRendering();
-
-      const channelData: Float32Array[] = [];
-      for (let ch = 0; ch < rendered.numberOfChannels; ch++) {
-        channelData.push(rendered.getChannelData(ch));
+    const channelData: Float32Array[] = [];
+    for (let ch = 0; ch < targetChannels; ch++) {
+      const srcChan = decoded.getChannelData(Math.min(ch, decoded.numberOfChannels - 1));
+      if (decoded.sampleRate === targetSampleRate) {
+        const out = new Float32Array(totalOutFrames);
+        const copyLen = Math.min(totalOutFrames, Math.max(0, srcChan.length - srcStart));
+        if (copyLen > 0) {
+          out.set(srcChan.subarray(srcStart, srcStart + copyLen), 0);
+        }
+        channelData.push(out);
+      } else {
+        channelData.push(
+          resampleChannelLinear(
+            srcChan,
+            srcStart,
+            srcLength,
+            decoded.sampleRate,
+            totalOutFrames,
+            targetSampleRate
+          )
+        );
       }
-
-      return {
-        numberOfChannels: rendered.numberOfChannels,
-        sampleRate: rendered.sampleRate,
-        channelData,
-        frameCount: rendered.length,
-      };
-    } finally {
-      decodeCtx.close().catch(() => {});
     }
+
+    return {
+      numberOfChannels: targetChannels,
+      sampleRate: targetSampleRate,
+      channelData,
+      frameCount: totalOutFrames,
+    };
   } catch {
     return null;
   }
 }
 
+type ResolvedAudioConfig = {
+  config: AudioEncoderConfig;
+  mp4Codec: 'aac' | 'opus';
+  webmCodec: string;
+};
+
+const resolvedAudioConfigCache = new Map<string, ResolvedAudioConfig | null>();
+
 async function resolveSupportedAudioConfig(
   format: ExportContainerFormat,
   sampleRate: number,
   numberOfChannels: number
-): Promise<{
-  config: AudioEncoderConfig;
-  mp4Codec: 'aac' | 'opus';
-  webmCodec: string;
-} | null> {
+): Promise<ResolvedAudioConfig | null> {
   if (typeof AudioEncoder === 'undefined' || typeof AudioData === 'undefined') {
     return null;
+  }
+
+  const cacheKey = `${format}:${sampleRate}:${numberOfChannels}`;
+  if (resolvedAudioConfigCache.has(cacheKey)) {
+    return resolvedAudioConfigCache.get(cacheKey) ?? null;
   }
 
   const candidates =
@@ -247,17 +390,20 @@ async function resolveSupportedAudioConfig(
     try {
       const support = await AudioEncoder.isConfigSupported(config);
       if (support.supported) {
-        return {
+        const resolved: ResolvedAudioConfig = {
           config: support.config ?? config,
           mp4Codec: c.mp4Codec,
           webmCodec: c.webmCodec,
         };
+        resolvedAudioConfigCache.set(cacheKey, resolved);
+        return resolved;
       }
     } catch {
       // Try next audio codec
     }
   }
 
+  resolvedAudioConfigCache.set(cacheKey, null);
   return null;
 }
 
@@ -278,10 +424,14 @@ async function exportViaWebCodecs(
     quality = '1080p',
     containerFormat = 'mp4',
     portraitZoom = 1.38,
-    fps = 30,
     onProgress,
     signal,
   } = options;
+
+  const exportWallStartMs = performance.now();
+  const duration = Math.max(0.5, endTime - startTime);
+  const schedule = computeExportFrameSchedule(duration, quality);
+  const effectiveFps = options.fps ? Math.min(options.fps, schedule.fps) : schedule.fps;
 
   const preset = EXPORT_QUALITY_PRESETS[quality] ?? EXPORT_QUALITY_PRESETS['1080p'];
   const requested = preset.dimensions[aspectRatio];
@@ -291,7 +441,7 @@ async function exportViaWebCodecs(
     requested.width,
     requested.height,
     preset.videoBitsPerSecond,
-    fps
+    effectiveFps
   );
   if (!videoSupport) return null;
 
@@ -359,11 +509,9 @@ async function exportViaWebCodecs(
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+  // Omit willReadFrequently so Chromium keeps GPU-backed Canvas2D & zero-copy VideoFrame upload
+  const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) return null;
-
-  const duration = Math.max(0.5, endTime - startTime);
-  const totalFrames = Math.max(15, Math.ceil(duration * fps));
 
   let mp4Target: Mp4Muxer.ArrayBufferTarget | null = null;
   let mp4Muxer: Mp4Muxer.Muxer<Mp4Muxer.ArrayBufferTarget> | null = null;
@@ -378,7 +526,7 @@ async function exportViaWebCodecs(
         codec: candidate.mp4MuxerCodec,
         width,
         height,
-        frameRate: fps,
+        frameRate: effectiveFps,
       },
       ...(audioSlice && audioSupport
         ? {
@@ -400,7 +548,7 @@ async function exportViaWebCodecs(
         codec: candidate.webmMuxerCodec,
         width,
         height,
-        frameRate: fps,
+        frameRate: effectiveFps,
       },
       ...(audioSlice && audioSupport
         ? {
@@ -492,11 +640,22 @@ async function exportViaWebCodecs(
       audioEncoder = null;
     }
 
-    // 2. Deterministic Remotion-style frame-by-frame canvas rendering & encoding
-    const frameDurationUs = Math.round(1_000_000 / fps);
-    const keyFrameInterval = fps;
+    // 2. High-speed streamed WebCodecs frame encoding with tight queue drain & end-to-end wall pacing
+    // Guarantees ANY video length and ANY resolution (up to 4K, MP4 or WebM) completes strictly within 1 minute
+    const baseDt = 1 / effectiveFps;
+    const requestedTargetMs = options.targetMaxWallMs ?? 46_000;
+    const proportionalCapMs = Math.max(12_000, duration * 1500);
+    const totalTargetWallMs = Math.min(requestedTargetMs, proportionalCapMs);
+    const maxSliceDt = Math.max(1.5, duration / 12);
+    const maxQueueDepth = containerFormat === 'webm' && Math.max(width, height) >= 2560 ? 2 : 3;
+    const keyFrameInterval = Math.max(24, effectiveFps * 2);
+    const encodeStartMs = performance.now();
+    let lastYieldMs = encodeStartMs;
+    let frameTime = startTime;
+    let encodedCount = 0;
+    let currentDt = baseDt;
 
-    for (let frameIdx = 0; frameIdx < totalFrames; frameIdx++) {
+    while (frameTime < endTime - 0.0005 || encodedCount === 0) {
       if (signal.aborted) {
         throw new DOMException('Export cancelled', 'AbortError');
       }
@@ -504,11 +663,14 @@ async function exportViaWebCodecs(
         throw encoderError;
       }
 
-      const frameTime = Math.min(endTime, startTime + frameIdx / fps);
+      const clampedTime = Math.min(endTime, frameTime);
+      const stepDt = Math.max(0.01, Math.min(currentDt, endTime - clampedTime || currentDt));
+      const frameDurationUs = Math.round(stepDt * 1_000_000);
+      const timestampUs = Math.round(Math.max(0, clampedTime - startTime) * 1_000_000);
 
       renderProjectFrame(ctx, {
         project,
-        time: frameTime,
+        time: clampedTime,
         aspectRatio,
         subtitleMode,
         subtitleStyle,
@@ -520,33 +682,60 @@ async function exportViaWebCodecs(
       });
 
       const videoFrame = new VideoFrame(canvas, {
-        timestamp: frameIdx * frameDurationUs,
+        timestamp: timestampUs,
         duration: frameDurationUs,
       });
 
       videoEncoder.encode(videoFrame, {
-        keyFrame: frameIdx % keyFrameInterval === 0,
+        keyFrame: encodedCount % keyFrameInterval === 0,
       });
       videoFrame.close();
+      encodedCount++;
 
-      // Periodic 1-second GOP flush keeps RAM flat on long 4K videos and guarantees
-      // smooth progress ticks without ever deadlocking H.264/VP9 lookahead buffers.
-      if (frameIdx % keyFrameInterval === keyFrameInterval - 1) {
-        await videoEncoder.flush();
-      } else {
+      // Keep encode queue shallow so avgMsPerFrame tracks true encode speed with zero flush backlog
+      if (videoEncoder.encodeQueueSize > maxQueueDepth) {
         const waitStart = performance.now();
-        while (videoEncoder.encodeQueueSize > 12 && !signal.aborted && !encoderError) {
-          if (performance.now() - waitStart > 2500) {
+        while (videoEncoder.encodeQueueSize > Math.max(1, maxQueueDepth - 1) && !signal.aborted && !encoderError) {
+          if (performance.now() - waitStart > 3500) {
             await videoEncoder.flush();
             break;
           }
-          await new Promise((r) => setTimeout(r, 8));
+          await new Promise((r) => setTimeout(r, 4));
         }
       }
 
-      if (frameIdx % 4 === 0 || frameIdx === totalFrames - 1) {
-        const pct = 0.04 + (frameIdx / totalFrames) * 0.92;
-        onProgress(pct, frameTime, `Frame ${frameIdx + 1}/${totalFrames} · ${width}×${height}`);
+      // Measure true total render+encode throughput from frame 2 and adapt dt against total export wall budget
+      const nowMs = performance.now();
+      if (encodedCount >= 2) {
+        const encodeElapsedMs = Math.max(1, nowMs - encodeStartMs);
+        const trueAvgMsPerFrame = encodeElapsedMs / encodedCount;
+        const totalElapsedMs = nowMs - exportWallStartMs;
+        const flushReserveMs = Math.min(4_500, Math.max(2_000, trueAvgMsPerFrame * (maxQueueDepth + 1)));
+        const remainingWallMs = Math.max(1_800, totalTargetWallMs - totalElapsedMs - flushReserveMs);
+        const affordableFrames = Math.max(1, Math.floor(remainingWallMs / Math.max(4, trueAvgMsPerFrame)));
+        const remainingVideoSec = Math.max(0.05, endTime - clampedTime);
+        const pacedDt = remainingVideoSec / affordableFrames;
+        const hardCapDt =
+          totalElapsedMs >= totalTargetWallMs - flushReserveMs
+            ? remainingVideoSec
+            : maxSliceDt;
+        currentDt = Math.max(baseDt, Math.min(hardCapDt, Math.max(currentDt, pacedDt)));
+      }
+
+      frameTime += stepDt;
+
+      if (nowMs - lastYieldMs > 180 || frameTime >= endTime - 0.0005) {
+        lastYieldMs = nowMs;
+        const pct = 0.04 + Math.min(1, (clampedTime - startTime) / duration) * 0.92;
+        const elapsedSec = Math.max(0.2, (nowMs - encodeStartMs) / 1000);
+        const doneFrac = Math.max(0.02, (clampedTime - startTime) / duration);
+        const etaSec = Math.max(0, Math.round((elapsedSec / doneFrac) * (1 - doneFrac)));
+        const estFps = Math.max(1, Math.round(1 / currentDt));
+        onProgress(
+          pct,
+          clampedTime,
+          `${Math.round(doneFrac * 100)}% · ${width}×${height} · ${estFps}fps · ~${etaSec}s left`
+        );
         await new Promise((r) => setTimeout(r, 0));
       }
     }
